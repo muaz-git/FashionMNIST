@@ -7,7 +7,11 @@ Created on Sat Aug 16 12:46:14 2019
 
 import torch.nn as nn
 import torch
+import torchvision.models as models
 import torch.nn.functional as F
+import time
+import numpy as np
+
 
 class Flatten(nn.Module):
     def forward(self, input):
@@ -37,16 +41,16 @@ class VGGMini(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(64),
 
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=(3, 3), padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.MaxPool2d(kernel_size=2, stride=1),
-            nn.Dropout(0.25),
+            # nn.Conv2d(in_channels=64, out_channels=64, kernel_size=(3, 3), padding=1),
+            # nn.ReLU(inplace=True),
+            # nn.BatchNorm2d(64),
+            # nn.MaxPool2d(kernel_size=2, stride=1),
+            # nn.Dropout(0.25),
 
         )
         # first (and only) set of FC => RELU layers
         self.classifier = nn.Sequential(
-            nn.Linear(in_features=64 * 26 * 26, out_features=512),
+            nn.Linear(in_features=64 * 27 * 27, out_features=512),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(0.5),
@@ -56,15 +60,29 @@ class VGGMini(nn.Module):
 
     def forward(self, x):
         x = self.features(x)
+        # print(x.shape)
         x = x.view(x.size(0), -1)
-
+        # print(x.shape)
+        # exit()
         x = self.classifier(x)
         return F.log_softmax(x, dim=1)
 
 
 if __name__ == '__main__':
-    m = VGGMini(num_classes=10)
+    # m = VGGMini(num_classes=10) # 0.01675469160079956 for 32 imgs 1 channel
+    # m = models.resnet18(pretrained=True)  # 0.029872844219207762 for 32 imgs of channles
+    # m = models.resnet34(pretrained=True)  # 0.044227190017700195 for 32 imgs of channles
+    m = models.mobilenet_v2(pretrained=False)
+    print(m)
+    exit()
     m.cuda(0)
+    ts = []
+    x = torch.randn(32, 3, 28, 28, device='cuda:0', dtype=torch.float32)
+    for t in range(100):
+        et = time.time()
+        m(x)
+        ts.append(time.time() - et)
 
-    x = torch.randn(5, 3, 28, 28, device='cuda:0', dtype=torch.float32)
-    m(x)
+    print('Average :', np.average(ts))
+
+    # print(m)

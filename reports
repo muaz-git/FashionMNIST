@@ -1,0 +1,42 @@
+No augmentation or normalization
+BS = 32
+INIT_LR = 1e-2
+NUM_EPOCHS = 25
+
+VGGMini without last convolution layer
+              precision    recall  f1-score   support
+
+         top       0.91      0.88      0.89      1000
+     trouser       0.99      0.99      0.99      1000
+    pullover       0.92      0.88      0.90      1000
+       dress       0.93      0.94      0.93      1000
+        coat       0.89      0.92      0.90      1000
+      sandal       0.99      0.98      0.99      1000
+       shirt       0.80      0.82      0.81      1000
+     sneaker       0.96      0.98      0.97      1000
+         bag       0.99      0.99      0.99      1000
+  ankle boot       0.98      0.97      0.97      1000
+
+    accuracy                           0.93     10000
+   macro avg       0.94      0.93      0.94     10000
+weighted avg       0.94      0.93      0.94     10000
+
+
+
+VGGMini
+              precision    recall  f1-score   support
+
+         top       0.89      0.90      0.89      1000
+     trouser       1.00      0.98      0.99      1000
+    pullover       0.90      0.92      0.91      1000
+       dress       0.94      0.94      0.94      1000
+        coat       0.89      0.92      0.91      1000
+      sandal       0.99      0.99      0.99      1000
+       shirt       0.83      0.79      0.81      1000
+     sneaker       0.96      0.98      0.97      1000
+         bag       0.99      0.99      0.99      1000
+  ankle boot       0.98      0.97      0.98      1000
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000

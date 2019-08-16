@@ -15,22 +15,25 @@ from torchvision import datasets, transforms
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
-from collections import OrderedDict
-from models import VGGMini
+from models import VGGMini, NetC
 from sklearn.metrics import classification_report
+from tensorboardX import SummaryWriter
 
 BS = 32  # 256
 INIT_LR = 1e-2
 NUM_EPOCHS = 25
+
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
+
+iterr = 0
 
 
 def imshow(image, ax=None, title=None, normalize=True):
     """Imshow for Tensor."""
     if ax is None:
         fig, ax = plt.subplots()
-    image = image.numpy().transpose((1, 2, 0))
+    image = np.squeeze(image.numpy())
 
     if normalize:
         mean = np.array([0.485, 0.456, 0.406])
@@ -79,21 +82,31 @@ def view_classify(img, ps, version="Fashion"):
 
 
 def train(model, device, train_loader, optimizer, epoch, log_interval):
+    global iterr
     model.train()
+    correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
         loss.backward()
+
+        iterr += 1
         optimizer.step()
+
+        pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        correct += pred.eq(target.view_as(pred)).sum().item()
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.item()))
 
+    writer.add_scalar('loss/train', loss.item(), epoch)
+    writer.add_scalar('accuracy/train', 100. * correct / len(train_loader.dataset), epoch)
 
-def test(model, device, test_loader):
+
+def test(model, device, test_loader, epoch):
     model.eval()
     test_loss = 0
     correct = 0
@@ -107,6 +120,9 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
+
+    writer.add_scalar('loss/val', test_loss, epoch)
+    writer.add_scalar('accuracy/val', 100. * correct / len(test_loader.dataset), epoch)
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
@@ -129,7 +145,7 @@ def cls_report(model, device, test_loader):
             all_targ += target
             all_pred += pred
 
-    print("[INFO] evaluating network...")
+    print("evaluating network...")
     print(classification_report(all_targ, all_pred,
                                 target_names=labelNames))
 
@@ -157,7 +173,9 @@ def main():
         ])),
         batch_size=1000, shuffle=True, **kwargs)
 
-    model = VGGMini(num_classes=10)
+    image, _ = next(iter(train_loader))
+
+    model = NetC(num_classes=10)
     if torch.cuda.device_count() > 1:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
@@ -167,12 +185,14 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
 
     for epoch in range(1, NUM_EPOCHS + 1):
-        train(model, device, train_loader, optimizer, epoch, log_interval=10)
-        test(model, device, test_loader)
+        train(model, device, train_loader, optimizer, epoch, log_interval=100)
+        test(model, device, test_loader, epoch)
 
     cls_report(model, device, test_loader)
-    torch.save(model.state_dict(), "fashionmnist_cnn.pt")
+    torch.save(model.state_dict(), "fashionmnist_cnn_wo_lastconv.pt")
 
 
 if __name__ == '__main__':
+    exp_path = "./exps/mytype"
+    writer = SummaryWriter(log_dir=exp_path)
     main()
