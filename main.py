@@ -17,10 +17,13 @@ from torch import optim
 import torch.nn.functional as F
 from collections import OrderedDict
 from models import VGGMini
+from sklearn.metrics import classification_report
 
-BS = 256
+BS = 32  # 256
 INIT_LR = 1e-2
-NUM_EPOCHS = 2
+NUM_EPOCHS = 25
+labelNames = ["top", "trouser", "pullover", "dress", "coat",
+              "sandal", "shirt", "sneaker", "bag", "ankle boot"]
 
 
 def imshow(image, ax=None, title=None, normalize=True):
@@ -99,6 +102,7 @@ def test(model, device, test_loader):
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -107,6 +111,27 @@ def test(model, device, test_loader):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
+
+
+def cls_report(model, device, test_loader):
+    model.eval()
+    all_targ = []
+    all_pred = []
+
+    with torch.no_grad():
+        for data, target in test_loader:
+            data = data.to(device)
+            output = model(data)
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            pred = list(np.squeeze(pred.cpu().detach().numpy()))
+            target = list(target.numpy())
+
+            all_targ += target
+            all_pred += pred
+
+    print("[INFO] evaluating network...")
+    print(classification_report(all_targ, all_pred,
+                                target_names=labelNames))
 
 
 def main():
@@ -145,6 +170,7 @@ def main():
         train(model, device, train_loader, optimizer, epoch, log_interval=10)
         test(model, device, test_loader)
 
+    cls_report(model, device, test_loader)
     torch.save(model.state_dict(), "fashionmnist_cnn.pt")
 
 

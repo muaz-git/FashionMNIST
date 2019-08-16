@@ -1,0 +1,4 @@
+data/
+fashionmnist_cnn.pt
+.idea
+__pycache__
