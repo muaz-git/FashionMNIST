@@ -1,7 +1,13 @@
-import torchvision.models
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Aug 16 12:46:14 2019
+
+@author: Muaz Usmani
+"""
+
 import torch.nn as nn
 import torch
-
+import torch.nn.functional as F
 
 class Flatten(nn.Module):
     def forward(self, input):
@@ -16,7 +22,7 @@ class VGGMini(nn.Module):
         #                 padding_mode='zeros')
         self.features = nn.Sequential(
             # first CONV => RELU => CONV => RELU => POOL layer set
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=(3, 3), padding=1),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3), padding=1),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(32),
 
@@ -53,7 +59,7 @@ class VGGMini(nn.Module):
         x = x.view(x.size(0), -1)
 
         x = self.classifier(x)
-        return x
+        return F.log_softmax(x, dim=1)
 
 
 if __name__ == '__main__':

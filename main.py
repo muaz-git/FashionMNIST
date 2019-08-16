@@ -4,7 +4,9 @@ Created on Sat Aug 16 12:46:14 2019
 
 @author: Muaz Usmani
 """
+import matplotlib
 
+matplotlib.use("Agg")
 
 import numpy as np
 import torch
@@ -14,19 +16,11 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from collections import OrderedDict
+from models import VGGMini
 
-# Define a transform to normalize the data
-transform = transforms.Compose([transforms.ToTensor(),
-                                transforms.Normalize([0.5], [0.5]),
-                                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                                ])
-# Download and load the training data
-trainset = datasets.FashionMNIST('data/', download=True, train=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
-
-# Download and load the test data
-testset = datasets.FashionMNIST('data/', download=True, train=False, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=True)
+BS = 256
+INIT_LR = 1e-2
+NUM_EPOCHS = 2
 
 
 def imshow(image, ax=None, title=None, normalize=True):
@@ -81,129 +75,78 @@ def view_classify(img, ps, version="Fashion"):
     ax2.set_xlim(0, 1.1)
 
 
-# Display the images from the traning data
-image, label = next(iter(trainloader))
-# print(image.shape)
-# exit()
-imshow(image[1, :])
-
-
-# Building our
-class Network(nn.Module):
-    def __init__(self):
-        super().__init__()
-        # Defining the layers, 128, 64, 10 units each
-        self.fc1 = nn.Linear(784, 128)
-        self.fc2 = nn.Linear(128, 64)
-        # Output layer, 10 units - one for each digit
-        self.fc3 = nn.Linear(64, 10)
-
-    def forward(self, x):
-        ''' Forward pass through the network, returns the output logits '''
-
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
-        x = F.softmax(x, dim=1)
-
-        return x
-
-
-model = Network()
-
-# Grab traning data
-dataiter = iter(trainloader)
-images, labels = dataiter.next()
-
-# Resize images into a 1D vector, new shape is (batch size, color channels, image pixels)
-images.resize_(64, 1, 784)
-# or images.resize_(images.shape[0], 1, 784) to not automatically get batch size
-
-# Forward pass through the network
-img_idx = 0
-ps = model.forward(images[img_idx, :])
-
-img = images[img_idx]
-view_classify(img.view(1, 28, 28), ps)
-
-# Hyperparameters for our network
-input_size = 784
-hidden_sizes = [200, 100]
-output_size = 10
-
-model = nn.Sequential(OrderedDict([
-    ('fc1', nn.Linear(input_size, hidden_sizes[0])),
-    ('relu1', nn.ReLU()),
-    ('fc2', nn.Linear(hidden_sizes[0], hidden_sizes[1])),
-    ('relu2', nn.ReLU()),
-    ('output', nn.Linear(hidden_sizes[1], output_size)),
-    ('relu3', nn.ReLU())]))
-
-# Traning Our Model
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.1)
-
-images, labels = next(iter(trainloader))
-images.resize_(64, 784)
-
-# Clear the gradients, do this because gradients are accumulated
-optimizer.zero_grad()
-
-# Forward pass, then backward pass, then update weights
-output = model.forward(images)
-loss = criterion(output, labels)
-loss.backward()
-# print('Gradient -', model.fc1.weight.grad)
-optimizer.step()
-
-epochs = 5
-print_every = 100
-steps = 0
-for e in range(epochs):
-    running_loss = 0
-    for images, labels in iter(trainloader):
-        steps += 1
-        # Flatten MNIST images into a 784 long vector
-        images.resize_(images.size()[0], 784)
-
+def train(model, device, train_loader, optimizer, epoch, log_interval):
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
-
-        # Forward and backward passes
-        output = model.forward(images)
-        loss = criterion(output, labels)
+        output = model(data)
+        loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
+        if batch_idx % log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), loss.item()))
 
-        running_loss += loss.item()
 
-        if steps % print_every == 0:
-            print("Epoch: {}/{}... ".format(e + 1, epochs),
-                  "Loss: {:.4f}".format(running_loss / print_every))
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
 
-            running_loss = 0
+    test_loss /= len(test_loader.dataset)
 
-# Now lets test our with trained data
-images, labels = next(iter(trainloader))
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
 
-img = images[1].view(1, 784)
-# Turn off gradients to speed up this part
-with torch.no_grad():
-    logits = model.forward(img)
 
-# Output of the network are logits, need to take softmax for probabilities
-ps = F.softmax(logits, dim=1)
-view_classify(img.view(1, 28, 28), ps, version='Fashion')
+def main():
+    use_cuda = torch.cuda.is_available()
+    torch.manual_seed(1)
+    device = torch.device("cuda" if use_cuda else "cpu")
 
-# Now lets test our with test data
-images, labels = next(iter(testloader))
+    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-img = images[1].view(1, 784)
-# Turn off gradients to speed up this part
-with torch.no_grad():
-    logits = model.forward(img)
+    # Download and load the training data
+    train_loader = torch.utils.data.DataLoader(
+        datasets.FashionMNIST('data/', train=True, download=True,
+                              transform=transforms.Compose([
+                                  transforms.ToTensor(),
+                                  # transforms.Normalize((0.1307,), (0.3081,))
+                              ])),
+        batch_size=BS, shuffle=True, **kwargs)
+    # Download and load the test data
+    test_loader = torch.utils.data.DataLoader(
+        datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose([
+            transforms.ToTensor(),
+            # transforms.Normalize((0.1307,), (0.3081,))
+        ])),
+        batch_size=1000, shuffle=True, **kwargs)
 
-# Output of the network are logits, need to take softmax for probabilities
-ps = F.softmax(logits, dim=1)
-view_classify(img.view(1, 28, 28), ps, version='Fashion')
+    model = VGGMini(num_classes=10)
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
+    model.to(device)
+
+    optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
+
+    for epoch in range(1, NUM_EPOCHS + 1):
+        train(model, device, train_loader, optimizer, epoch, log_interval=10)
+        test(model, device, test_loader)
+
+    torch.save(model.state_dict(), "fashionmnist_cnn.pt")
+
+
+if __name__ == '__main__':
+    main()
