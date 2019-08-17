@@ -15,13 +15,13 @@ from torchvision import datasets, transforms
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
-from models import VGGMini, NetC
+from models import VGGMini, VGGMiniCBR
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
 
 BS = 32  # 256
 INIT_LR = 1e-2
-NUM_EPOCHS = 25
+NUM_EPOCHS = 5
 
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
@@ -105,6 +105,9 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
     writer.add_scalar('loss/train', loss.item(), epoch)
     writer.add_scalar('accuracy/train', 100. * correct / len(train_loader.dataset), epoch)
 
+    print('\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        loss.item(), correct, len(train_loader.dataset),
+        100. * correct / len(train_loader.dataset)))
 
 def test(model, device, test_loader, epoch):
     model.eval()
@@ -175,7 +178,7 @@ def main():
 
     image, _ = next(iter(train_loader))
 
-    model = NetC(num_classes=10)
+    model = VGGMini(num_classes=10)
     if torch.cuda.device_count() > 1:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
@@ -189,10 +192,10 @@ def main():
         test(model, device, test_loader, epoch)
 
     cls_report(model, device, test_loader)
-    torch.save(model.state_dict(), "fashionmnist_cnn_wo_lastconv.pt")
+    # torch.save(model.state_dict(), "fashionmnist_cnn_wo_lastconv.pt")
 
 
 if __name__ == '__main__':
-    exp_path = "./exps/mytype"
+    exp_path = "./exps/5epochs/CBR"
     writer = SummaryWriter(log_dir=exp_path)
     main()
