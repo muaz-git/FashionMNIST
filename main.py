@@ -50,7 +50,7 @@ mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
 #
 # exit()
 # print(W.shape)
-# exit()
+exit()
 
 def imshow(image, ax=None, title=None, normalize=True):
     """Imshow for Tensor."""
@@ -217,7 +217,6 @@ def main():
         ])),
         batch_size=VAL_BS, shuffle=True, **kwargs)
 
-    image, _ = next(iter(train_loader))
 
     model = VGGMiniCBR(num_classes=10)
     # if torch.cuda.device_count() > 1:
