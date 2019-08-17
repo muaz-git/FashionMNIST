@@ -15,18 +15,23 @@ from torchvision import datasets, transforms
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
-from models import VGGMini, VGGMiniCBR
+from models import VGGMiniCBR
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
 
+from torch.optim.lr_scheduler import LambdaLR
+
 BS = 32  # 256
 INIT_LR = 1e-2
-NUM_EPOCHS = 5
+NUM_EPOCHS = 25
+
+# mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
 
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
 
 iterr = 0
+fcn = lambda step: 1. / (1. + INIT_LR / NUM_EPOCHS * step)
 
 
 def imshow(image, ax=None, title=None, normalize=True):
@@ -81,7 +86,7 @@ def view_classify(img, ps, version="Fashion"):
     ax2.set_xlim(0, 1.1)
 
 
-def train(model, device, train_loader, optimizer, epoch, log_interval):
+def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval):
     global iterr
     model.train()
     correct = 0
@@ -95,6 +100,8 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
         iterr += 1
         optimizer.step()
 
+        scheduler.step()
+
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         correct += pred.eq(target.view_as(pred)).sum().item()
         if batch_idx % log_interval == 0:
@@ -102,12 +109,13 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.item()))
 
-    writer.add_scalar('loss/train', loss.item(), epoch)
-    writer.add_scalar('accuracy/train', 100. * correct / len(train_loader.dataset), epoch)
+    writer.add_scalar('loss/train', loss.item(), epoch - 1)
+    writer.add_scalar('accuracy/train', 100. * correct / len(train_loader.dataset), epoch - 1)
 
-    print('\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(
         loss.item(), correct, len(train_loader.dataset),
         100. * correct / len(train_loader.dataset)))
+
 
 def test(model, device, test_loader, epoch):
     model.eval()
@@ -124,10 +132,10 @@ def test(model, device, test_loader, epoch):
 
     test_loss /= len(test_loader.dataset)
 
-    writer.add_scalar('loss/val', test_loss, epoch)
-    writer.add_scalar('accuracy/val', 100. * correct / len(test_loader.dataset), epoch)
+    writer.add_scalar('loss/val', test_loss, epoch - 1)
+    writer.add_scalar('accuracy/val', 100. * correct / len(test_loader.dataset), epoch - 1)
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
@@ -161,34 +169,37 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     # Download and load the training data
+    # Download and load the test data
     train_loader = torch.utils.data.DataLoader(
         datasets.FashionMNIST('data/', train=True, download=True,
                               transform=transforms.Compose([
+                                  transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
+                                                          shear=5),
+                                  transforms.RandomHorizontalFlip(),
                                   transforms.ToTensor(),
-                                  # transforms.Normalize((0.1307,), (0.3081,))
+                                  transforms.Normalize((0.2860,), (0.3530,))
                               ])),
         batch_size=BS, shuffle=True, **kwargs)
-    # Download and load the test data
     test_loader = torch.utils.data.DataLoader(
         datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose([
             transforms.ToTensor(),
-            # transforms.Normalize((0.1307,), (0.3081,))
+            transforms.Normalize((0.2860,), (0.3530,))
         ])),
         batch_size=1000, shuffle=True, **kwargs)
 
     image, _ = next(iter(train_loader))
 
-    model = VGGMini(num_classes=10)
-    if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        model = nn.DataParallel(model)
+    model = VGGMiniCBR(num_classes=10)
+    # if torch.cuda.device_count() > 1:
+    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     model = nn.DataParallel(model)
     model.to(device)
 
     optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
+    scheduler = LambdaLR(optimizer, lr_lambda=fcn)
 
     for epoch in range(1, NUM_EPOCHS + 1):
-        train(model, device, train_loader, optimizer, epoch, log_interval=100)
+        train(model, device, train_loader, optimizer, scheduler, epoch, log_interval=100)
         test(model, device, test_loader, epoch)
 
     cls_report(model, device, test_loader)
@@ -196,6 +207,12 @@ def main():
 
 
 if __name__ == '__main__':
-    exp_path = "./exps/5epochs/CBR"
+    # augmentations:
+    # rscale: True
+    # rcrop: 712  # random crop of size 713, both dimensions, or can be a tuple.
+    # hflip: 0.5  # randomly flip image horizontlly
+    # augmentations = {"rscale": True, "rcrop": 712, "hflip": 0.5}
+    # data_aug = get_composed_augmentations(augmentations)
+    exp_path = "./exps/25epochs/Aug/moderateFlip"
     writer = SummaryWriter(log_dir=exp_path)
     main()

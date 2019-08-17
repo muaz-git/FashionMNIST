@@ -63,7 +63,7 @@ class VGGMini(nn.Module):
         return F.log_softmax(x, dim=1)
 
 
-class VGGMiniCBR(nn.Module):
+class VGGMiniCBR(nn.Module): # overall graph is above than CRB method.
     def __init__(self, num_classes=10):
         super(VGGMiniCBR, self).__init__()
 

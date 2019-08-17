@@ -6,37 +6,110 @@ NUM_EPOCHS = 25
 VGGMini without last convolution layer
               precision    recall  f1-score   support
 
-         top       0.91      0.88      0.89      1000
-     trouser       0.99      0.99      0.99      1000
-    pullover       0.92      0.88      0.90      1000
-       dress       0.93      0.94      0.93      1000
-        coat       0.89      0.92      0.90      1000
-      sandal       0.99      0.98      0.99      1000
-       shirt       0.80      0.82      0.81      1000
-     sneaker       0.96      0.98      0.97      1000
-         bag       0.99      0.99      0.99      1000
-  ankle boot       0.98      0.97      0.97      1000
-
     accuracy                           0.93     10000
    macro avg       0.94      0.93      0.94     10000
 weighted avg       0.94      0.93      0.94     10000
 
 
-
 VGGMini
               precision    recall  f1-score   support
-
-         top       0.89      0.90      0.89      1000
-     trouser       1.00      0.98      0.99      1000
-    pullover       0.90      0.92      0.91      1000
-       dress       0.94      0.94      0.94      1000
-        coat       0.89      0.92      0.91      1000
-      sandal       0.99      0.99      0.99      1000
-       shirt       0.83      0.79      0.81      1000
-     sneaker       0.96      0.98      0.97      1000
-         bag       0.99      0.99      0.99      1000
-  ankle boot       0.98      0.97      0.98      1000
 
     accuracy                           0.94     10000
    macro avg       0.94      0.94      0.94     10000
 weighted avg       0.94      0.94      0.94     10000
+
+
+VGGMiniCBR
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+10degrees
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+0.05translate
+              precision    recall  f1-score   support
+
+    accuracy                           0.95     10000
+   macro avg       0.95      0.95      0.95     10000
+weighted avg       0.95      0.95      0.95     10000
+
+
+hflip
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+NormalizationPerDataset mean: 0.2860  std: 0.3530
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+NormMinus1Only -1, 1
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+Conclusion: Normalization doesnot matter.
+
+0.1translate
+evaluating network...
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+Conclusion: 0.05 translation is better.
+
+
+degrees=20, translate=(0.1, 0.1), scale=(0.9, 1.1),shear=0.5 with flip
+              precision    recall  f1-score   support
+
+    accuracy                           0.92     10000
+   macro avg       0.92      0.92      0.92     10000
+weighted avg       0.92      0.92      0.92     10000
+
+
+degrees=10, translate=(0.05, 0.05), scale=(0.9, 1.1),shear=10 without flip
+              precision    recall  f1-score   support
+
+    accuracy                           0.94     10000
+   macro avg       0.94      0.94      0.94     10000
+weighted avg       0.94      0.94      0.94     10000
+
+
+moderate degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),shear=5 without flip << much better
+              precision    recall  f1-score   support
+
+         top       0.90      0.92      0.91      1000
+     trouser       0.99      0.99      0.99      1000
+    pullover       0.94      0.91      0.92      1000
+       dress       0.93      0.96      0.94      1000
+        coat       0.90      0.94      0.92      1000
+      sandal       0.99      0.99      0.99      1000
+       shirt       0.85      0.82      0.83      1000
+     sneaker       0.96      0.99      0.98      1000
+         bag       0.99      0.99      0.99      1000
+  ankle boot       0.99      0.97      0.98      1000
+
+    accuracy                           0.95     10000
+   macro avg       0.95      0.95      0.95     10000
+weighted avg       0.95      0.95      0.95     10000
