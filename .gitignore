@@ -2,3 +2,6 @@ data/
 fashionmnist_cnn.pt
 .idea
 __pycache__
+dummy.py
+exps
+statistics
