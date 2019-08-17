@@ -18,21 +18,39 @@ import torch.nn.functional as F
 from models import VGGMiniCBR
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
-
 from torch.optim.lr_scheduler import LambdaLR
+import os
+from utils import save_zca
 
-BS = 32  # 256
+BS = 256  # 256
+VAL_BS = 1000  # 256
 INIT_LR = 1e-2
 NUM_EPOCHS = 25
 
 # mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
+# with zca mean : tensor(0.0856)  std:  tensor(0.8943) statistics of FashionMNIST
 
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
 
 iterr = 0
 fcn = lambda step: 1. / (1. + INIT_LR / NUM_EPOCHS * step)
+use_zca = False
+if not os.path.exists("./statistics"):
+    os.makedirs("./statistics")
+if not os.path.exists('./statistics/fashionmnist_zca_3.pt') and use_zca:
+    save_zca()
+if use_zca:
+    W = torch.load('./statistics/fashionmnist_zca_3.pt')
 
+mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
+
+
+# print((mean_std[use_zca][0],), (mean_std[use_zca][1],))
+#
+# exit()
+# print(W.shape)
+# exit()
 
 def imshow(image, ax=None, title=None, normalize=True):
     """Imshow for Tensor."""
@@ -91,6 +109,10 @@ def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval
     model.train()
     correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
+        if use_zca:
+            data = torch.matmul(data.reshape((BS, 1 * 28 * 28)), W)
+            data = data.reshape((BS, 1, 28, 28))
+
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
@@ -100,7 +122,7 @@ def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval
         iterr += 1
         optimizer.step()
 
-        scheduler.step()
+        # scheduler.step()
 
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         correct += pred.eq(target.view_as(pred)).sum().item()
@@ -123,6 +145,10 @@ def test(model, device, test_loader, epoch):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            if use_zca:
+                data = torch.matmul(data.reshape((VAL_BS, 1 * 28 * 28)), W)
+                data = data.reshape((VAL_BS, 1, 28, 28))
+
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
@@ -147,6 +173,10 @@ def cls_report(model, device, test_loader):
 
     with torch.no_grad():
         for data, target in test_loader:
+            if use_zca:
+                data = torch.matmul(data.reshape((VAL_BS, 1 * 28 * 28)), W)
+                data = data.reshape((VAL_BS, 1, 28, 28))
+
             data = data.to(device)
             output = model(data)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -175,17 +205,17 @@ def main():
                               transform=transforms.Compose([
                                   transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
                                                           shear=5),
-                                  transforms.RandomHorizontalFlip(),
+                                  # transforms.RandomHorizontalFlip(),
                                   transforms.ToTensor(),
-                                  transforms.Normalize((0.2860,), (0.3530,))
+                                  transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
                               ])),
         batch_size=BS, shuffle=True, **kwargs)
     test_loader = torch.utils.data.DataLoader(
         datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.2860,), (0.3530,))
+            transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
         ])),
-        batch_size=1000, shuffle=True, **kwargs)
+        batch_size=VAL_BS, shuffle=True, **kwargs)
 
     image, _ = next(iter(train_loader))
 
@@ -195,7 +225,8 @@ def main():
     #     model = nn.DataParallel(model)
     model.to(device)
 
-    optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
+    optimizer = optim.Adam(model.parameters())
+    # optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
     scheduler = LambdaLR(optimizer, lr_lambda=fcn)
 
     for epoch in range(1, NUM_EPOCHS + 1):
@@ -213,6 +244,6 @@ if __name__ == '__main__':
     # hflip: 0.5  # randomly flip image horizontlly
     # augmentations = {"rscale": True, "rcrop": 712, "hflip": 0.5}
     # data_aug = get_composed_augmentations(augmentations)
-    exp_path = "./exps/25epochs/Aug/moderateFlip"
+    exp_path = "./exps/25epochs/moderate_256_adam"
     writer = SummaryWriter(log_dir=exp_path)
     main()
