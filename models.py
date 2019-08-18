@@ -48,10 +48,11 @@ class VGGMini(nn.Module):
             nn.Linear(in_features=64 * 26 * 26, out_features=512),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
-            nn.Dropout(0.5),
-
-            nn.Linear(in_features=512, out_features=num_classes),
+            nn.Dropout(0.5)
         )
+
+        self.top_layer = nn.Linear(in_features=512, out_features=num_classes)
+
 
     def forward(self, x):
         x = self.features(x)
@@ -60,7 +61,10 @@ class VGGMini(nn.Module):
         # print(x.shape)
         # exit()
         x = self.classifier(x)
-        return F.log_softmax(x, dim=1)
+        if self.top_layer:
+            x = self.top_layer(x)
+        return x
+        # return F.log_softmax(x, dim=1)
 
 
 class VGGMiniCBR(nn.Module):  # overall graph is above than CRB method.
@@ -101,9 +105,9 @@ class VGGMiniCBR(nn.Module):  # overall graph is above than CRB method.
             nn.Linear(in_features=64 * 26 * 26, out_features=512),
             nn.BatchNorm1d(512),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(in_features=512, out_features=num_classes),
+            nn.Dropout(0.5)
         )
+        self.top_layer = nn.Linear(in_features=512, out_features=num_classes)
 
     def forward(self, x):
         x = self.features(x)
@@ -116,7 +120,10 @@ class VGGMiniCBR(nn.Module):  # overall graph is above than CRB method.
         # print(x.shape)
         # exit()
         x = self.classifier(x)
-        return F.log_softmax(x, dim=1)
+        if self.top_layer:
+            x = self.top_layer(x)
+        return x
+        # return F.log_softmax(x, dim=1)
 
 
 if __name__ == '__main__':

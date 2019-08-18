@@ -23,7 +23,7 @@ for cls in labelNames:
 train_loader = torch.utils.data.DataLoader(
     datasets.FashionMNIST('data/', train=split == 'train', download=True,
                           transform=transforms.Compose([transforms.ToTensor()])),
-    batch_size=32, shuffle=False, drop_last=False)
+    batch_size=1000, shuffle=False, drop_last=False)
 
 for data, target in train_loader:
     for img, lbl in zip(data, target):

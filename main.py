@@ -45,12 +45,13 @@ if use_zca:
 
 mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
 
-
+criterion = nn.CrossEntropyLoss()
 # print((mean_std[use_zca][0],), (mean_std[use_zca][1],))
 #
 # exit()
 # print(W.shape)
-exit()
+# exit()
+
 
 def imshow(image, ax=None, title=None, normalize=True):
     """Imshow for Tensor."""
@@ -116,7 +117,8 @@ def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        loss = criterion(output, target)
+        # loss = F.nll_loss(output, target)
         loss.backward()
 
         iterr += 1
@@ -151,9 +153,11 @@ def test(model, device, test_loader, epoch):
 
             data, target = data.to(device), target.to(device)
             output = model(data)
+            output = F.log_softmax(output, dim=1)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
 
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            # _, pred = torch.max(output.data, 1)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
@@ -180,6 +184,7 @@ def cls_report(model, device, test_loader):
             data = data.to(device)
             output = model(data)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            # _, pred = torch.max(output.data, 1)
             pred = list(np.squeeze(pred.cpu().detach().numpy()))
             target = list(target.numpy())
 
@@ -193,7 +198,12 @@ def cls_report(model, device, test_loader):
 
 def main():
     use_cuda = torch.cuda.is_available()
+
+    # fix random seeds
     torch.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
+    np.random.seed(1)
+
     device = torch.device("cuda" if use_cuda else "cpu")
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
@@ -217,19 +227,19 @@ def main():
         ])),
         batch_size=VAL_BS, shuffle=True, **kwargs)
 
-
     model = VGGMiniCBR(num_classes=10)
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = nn.DataParallel(model)
     model.to(device)
+    criterion.to(device)
 
     optimizer = optim.Adam(model.parameters())
     # optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
     scheduler = LambdaLR(optimizer, lr_lambda=fcn)
 
     for epoch in range(1, NUM_EPOCHS + 1):
-        train(model, device, train_loader, optimizer, scheduler, epoch, log_interval=100)
+        train(model, device, train_loader, optimizer, scheduler, epoch, log_interval=50)
         test(model, device, test_loader, epoch)
 
     cls_report(model, device, test_loader)
@@ -243,6 +253,6 @@ if __name__ == '__main__':
     # hflip: 0.5  # randomly flip image horizontlly
     # augmentations = {"rscale": True, "rcrop": 712, "hflip": 0.5}
     # data_aug = get_composed_augmentations(augmentations)
-    exp_path = "./exps/25epochs/moderate_256_adam"
+    exp_path = "./exps/25epochs/moderate_256_adam_CELoss"
     writer = SummaryWriter(log_dir=exp_path)
     main()
