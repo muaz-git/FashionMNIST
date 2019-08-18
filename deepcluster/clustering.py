@@ -65,8 +65,10 @@ class ReassignedDataset(data.Dataset):
         """
         path, pseudolabel = self.imgs[index]
         img = pil_loader(path)
+
         if self.transform is not None:
             img = self.transform(img)
+
         return img, pseudolabel
 
     def __len__(self):
@@ -82,10 +84,10 @@ def preprocess_features(npdata, pca=256):
         np.array of dim N * pca: data PCA-reduced, whitened and L2-normalized
     """
     _, ndim = npdata.shape
-    npdata =  npdata.astype('float32')
+    npdata = npdata.astype('float32')
 
     # Apply PCA-whitening with Faiss
-    mat = faiss.PCAMatrix (ndim, pca, eigen_power=-0.5)
+    mat = faiss.PCAMatrix(ndim, pca, eigen_power=-0.5)
     mat.train(npdata)
     assert mat.is_trained
     npdata = mat.apply_py(npdata)
@@ -137,14 +139,17 @@ def cluster_assign(images_lists, dataset):
         image_indexes.extend(images)
         pseudolabels.extend([cluster] * len(images))
 
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    t = transforms.Compose([transforms.RandomResizedCrop(224),
-                            transforms.RandomHorizontalFlip(),
-                            transforms.ToTensor(),
-                            normalize])
+    use_zca = False
+    mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
 
-    return ReassignedDataset(image_indexes, pseudolabels, dataset, t)
+    tra = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05), shear=5),
+        transforms.ToTensor(),
+        transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
+    ])
+
+    return ReassignedDataset(image_indexes, pseudolabels, dataset, tra)
 
 
 def run_kmeans(x, nmb_clusters, verbose=False):
@@ -209,6 +214,10 @@ class Kmeans:
 
         # cluster the data
         I, loss = run_kmeans(xb, self.k, verbose)
+        # I is list of size equal to image set.
+        # each element is assigned 0 - k-1.
+        # It is unsupervised cluster prediction.
+
         self.images_lists = [[] for i in range(self.k)]
         for i in range(len(data)):
             self.images_lists[I[i]].append(i)
@@ -237,7 +246,7 @@ def make_adjacencyW(I, D, sigma):
     indptr = np.multiply(k, np.arange(V + 1))
 
     def exp_ker(d):
-        return np.exp(-d / sigma**2)
+        return np.exp(-d / sigma ** 2)
 
     exp_ker = np.vectorize(exp_ker)
     res_D = exp_ker(D)

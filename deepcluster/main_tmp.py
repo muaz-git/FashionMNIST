@@ -25,52 +25,45 @@ import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
 
-
 parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
-#
-# parser.add_argument('data', metavar='DIR', help='path to dataset')
+
+parser.add_argument('data', metavar='DIR', help='path to dataset')
 parser.add_argument('--arch', '-a', type=str, metavar='ARCH',
                     choices=['alexnet', 'vgg16'], default='alexnet',
                     help='CNN architecture (default: alexnet)')
-parser.add_argument('--sobel', action='store_true', help='Sobel filtering', default=False)
-# parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
-#                     default='Kmeans', help='clustering algorithm (default: Kmeans)')
-# parser.add_argument('--nmb_cluster', '--k', type=int, default=10000,
-#                     help='number of cluster for k-means (default: 10000)')
+parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
+parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
+                    default='Kmeans', help='clustering algorithm (default: Kmeans)')
+parser.add_argument('--nmb_cluster', '--k', type=int, default=10000,
+                    help='number of cluster for k-means (default: 10000)')
 parser.add_argument('--lr', default=0.05, type=float,
                     help='learning rate (default: 0.05)')
 parser.add_argument('--wd', default=-5, type=float,
                     help='weight decay pow (default: -5)')
-# parser.add_argument('--reassign', type=float, default=1.,
-#                     help="""how many epochs of training between two consecutive
-#                     reassignments of clusters (default: 1)""")
-# parser.add_argument('--workers', default=4, type=int,
-#                     help='number of data loading workers (default: 4)')
-# parser.add_argument('--epochs', type=int, default=200,
-#                     help='number of total epochs to run (default: 200)')
-# parser.add_argument('--start_epoch', default=0, type=int,
-#                     help='manual epoch number (useful on restarts) (default: 0)')
-# parser.add_argument('--batch', default=256, type=int,
-#                     help='mini-batch size (default: 256)')
+parser.add_argument('--reassign', type=float, default=1.,
+                    help="""how many epochs of training between two consecutive
+                    reassignments of clusters (default: 1)""")
+parser.add_argument('--workers', default=4, type=int,
+                    help='number of data loading workers (default: 4)')
+parser.add_argument('--epochs', type=int, default=200,
+                    help='number of total epochs to run (default: 200)')
+parser.add_argument('--start_epoch', default=0, type=int,
+                    help='manual epoch number (useful on restarts) (default: 0)')
+parser.add_argument('--batch', default=256, type=int,
+                    help='mini-batch size (default: 256)')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to checkpoint (default: None)')
-# parser.add_argument('--checkpoints', type=int, default=25000,
-#                     help='how many iterations between two checkpoints (default: 25000)')
-parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-parser.add_argument('--exp', type=str, default='./exps/deepcluster', help='path to exp folder')
-parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
+parser.add_argument('--checkpoints', type=int, default=25000,
+                    help='how many iterations between two checkpoints (default: 25000)')
+parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
+parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+parser.add_argument('--verbose', action='store_true', help='chatty')
 
 
 def main():
     global args
     args = parser.parse_args()
-
-    use_cuda = torch.cuda.is_available()
-
-    device = torch.device("cuda" if use_cuda else "cpu")
-
-    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     # fix random seeds
     torch.manual_seed(args.seed)
@@ -84,22 +77,20 @@ def main():
     fd = int(model.top_layer.weight.size()[1])
     model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
-    model.to(device)
+    model.cuda()
     cudnn.benchmark = True
 
     # create optimizer
-    # optimizer = torch.optim.SGD(
-    #     filter(lambda x: x.requires_grad, model.parameters()),
-    #     lr=args.lr,
-    #     momentum=args.momentum,
-    #     weight_decay=10**args.wd,
-    # )
-
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()))
+    optimizer = torch.optim.SGD(
+        filter(lambda x: x.requires_grad, model.parameters()),
+        lr=args.lr,
+        momentum=args.momentum,
+        weight_decay=10 ** args.wd,
+    )
 
     # define loss function
-    # criterion = nn.CrossEntropyLoss().to(device)
-    # print("Everything good.")
+    criterion = nn.CrossEntropyLoss().cuda()
+
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -137,18 +128,10 @@ def main():
     end = time.time()
     dataset = datasets.ImageFolder(args.data, transform=transforms.Compose(tra))
     if args.verbose: print('Load dataset: {0:.2f} s'.format(time.time() - end))
-
-
-    train_loader = torch.utils.data.DataLoader(
-        datasets.FashionMNIST('data/', train=True, download=True,
-                              transform=transforms.Compose([
-                                  transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
-                                                          shear=5),
-                                  # transforms.RandomHorizontalFlip(),
-                                  transforms.ToTensor(),
-                                  transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
-                              ])),
-        batch_size=BS, shuffle=True, **kwargs)
+    dataloader = torch.utils.data.DataLoader(dataset,
+                                             batch_size=args.batch,
+                                             num_workers=args.workers,
+                                             pin_memory=True)
 
     # clustering algorithm to use
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster)
@@ -216,7 +199,7 @@ def main():
         torch.save({'epoch': epoch + 1,
                     'arch': args.arch,
                     'state_dict': model.state_dict(),
-                    'optimizer' : optimizer.state_dict()},
+                    'optimizer': optimizer.state_dict()},
                    os.path.join(args.exp, 'checkpoint.pth.tar'))
 
         # save cluster assignments
@@ -246,7 +229,7 @@ def train(loader, model, crit, opt, epoch):
     optimizer_tl = torch.optim.SGD(
         model.top_layer.parameters(),
         lr=args.lr,
-        weight_decay=10**args.wd,
+        weight_decay=10 ** args.wd,
     )
 
     end = time.time()
@@ -267,7 +250,7 @@ def train(loader, model, crit, opt, epoch):
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
-                'optimizer' : opt.state_dict()
+                'optimizer': opt.state_dict()
             }, path)
 
         target = target.cuda(async=True)
@@ -300,6 +283,7 @@ def train(loader, model, crit, opt, epoch):
                           data_time=data_time, loss=losses))
 
     return losses.avg
+
 
 def compute_features(dataloader, model, N):
     if args.verbose:

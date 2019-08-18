@@ -33,7 +33,6 @@ NUM_EPOCHS = 25
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
 
-iterr = 0
 fcn = lambda step: 1. / (1. + INIT_LR / NUM_EPOCHS * step)
 use_zca = False
 if not os.path.exists("./statistics"):
@@ -46,6 +45,8 @@ if use_zca:
 mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
 
 criterion = nn.CrossEntropyLoss()
+
+
 # print((mean_std[use_zca][0],), (mean_std[use_zca][1],))
 #
 # exit()
@@ -106,13 +107,14 @@ def view_classify(img, ps, version="Fashion"):
 
 
 def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval):
-    global iterr
     model.train()
     correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         if use_zca:
             data = torch.matmul(data.reshape((BS, 1 * 28 * 28)), W)
             data = data.reshape((BS, 1, 28, 28))
+
+        # data tensor(-0.8102) tensor(2.0227) torch.Size([256, 1, 28, 28])
 
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -121,7 +123,6 @@ def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval
         # loss = F.nll_loss(output, target)
         loss.backward()
 
-        iterr += 1
         optimizer.step()
 
         # scheduler.step()
@@ -147,6 +148,8 @@ def test(model, device, test_loader, epoch):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+
+
             if use_zca:
                 data = torch.matmul(data.reshape((VAL_BS, 1 * 28 * 28)), W)
                 data = data.reshape((VAL_BS, 1, 28, 28))
@@ -206,7 +209,7 @@ def main():
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 
     # Download and load the training data
     # Download and load the test data
