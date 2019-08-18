@@ -20,11 +20,8 @@ matplotlib.use("Agg")
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from torchvision import datasets, transforms
 from torch import nn
-from torch import optim
-import torch.nn.functional as F
 import os, sys, inspect
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -32,11 +29,8 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 from models import VGGMiniCBR
-from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
-from torch.optim.lr_scheduler import LambdaLR
 import os
-from utils import save_zca
 import argparse
 import torch.backends.cudnn as cudnn
 from util import AverageMeter, Logger, UnifLabelSampler
