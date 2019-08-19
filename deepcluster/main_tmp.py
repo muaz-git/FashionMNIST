@@ -276,9 +276,9 @@ def train(loader, model, crit, opt, epoch):
 
         if args.verbose and (i % 200) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data: {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss: {loss.val:.4f} ({loss.avg:.4f})'
+                  'Time: {batch_time.test:.3f} ({batch_time.avg:.3f})\t'
+                  'Data: {data_time.test:.3f} ({data_time.avg:.3f})\t'
+                  'Loss: {loss.test:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time,
                           data_time=data_time, loss=losses))
 
@@ -311,7 +311,7 @@ def compute_features(dataloader, model, N):
 
         if args.verbose and (i % 200) == 0:
             print('{0} / {1}\t'
-                  'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+                  'Time: {batch_time.test:.3f} ({batch_time.avg:.3f})'
                   .format(i, len(dataloader), batch_time=batch_time))
     return features
 

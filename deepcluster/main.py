@@ -50,7 +50,7 @@ def parse_args():
 
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=10,
                         help='number of cluster for k-means (default: 100)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
@@ -73,7 +73,7 @@ def parse_args():
     parser.add_argument('--checkpoints', type=int, default=25000,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--exp', type=str, default='./exps/100clusters', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='./exps/10clusters', help='path to exp folder')
     parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
 
     args = parser.parse_args()
@@ -297,7 +297,7 @@ def compute_features(dataloader, model, N, device):
 
             # if args.verbose and (i % 200) == 0:
             #     print('{0} / {1}\t'
-            #           'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+            #           'Time: {batch_time.test:.3f} ({batch_time.avg:.3f})'
             #           .format(i, len(dataloader), batch_time=batch_time))
     return features
 
