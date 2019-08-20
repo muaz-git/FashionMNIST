@@ -12,11 +12,13 @@ import torch.nn.functional as F
 import time
 import numpy as np
 
+__all__ = ['VGGMini', 'VGGMiniCBR']
+
 
 class VGGMini(nn.Module):
     def __init__(self, num_classes=10):
         super(VGGMini, self).__init__()
-
+        print("Constructing VGGMini")
         # torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True,
         #                 padding_mode='zeros')
         self.features = nn.Sequential(
@@ -69,7 +71,7 @@ class VGGMini(nn.Module):
 class VGGMiniCBR(nn.Module):  # overall graph is above than CRB method.
     def __init__(self, num_classes=10):
         super(VGGMiniCBR, self).__init__()
-
+        print("Constructing VGGMiniCBR")
         # torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True,
         #                 padding_mode='zeros')
 

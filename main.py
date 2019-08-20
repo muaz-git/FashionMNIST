@@ -15,25 +15,49 @@ from torchvision import datasets, transforms
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
-from models import VGGMiniCBR
+import models
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import LambdaLR
 import os
 from utils import save_zca
+import argparse
 
-BS = 256  # 256
-VAL_BS = 1000  # 256
-INIT_LR = 1e-2
-NUM_EPOCHS = 25
+
+# BS = 256  # 256
+# VAL_BS = 1000  # 256
+# INIT_LR = 1e-2
+# NUM_EPOCHS = 25
+
 
 # mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
 # with zca mean : tensor(0.0856)  std:  tensor(0.8943) statistics of FashionMNIST
 
+def parse_args():
+    global args
+    parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
+    #
+    parser.add_argument('--batch', default=256, type=int,
+                        help='mini-batch size (default: 256)')
+    parser.add_argument('--valbatch', default=1000, type=int,
+                        help='mini-batch size for validation (default: 1000)')
+    parser.add_argument('--lr', default=1e-3, type=float,
+                        help='learning rate (default: 1e-3)')
+    parser.add_argument('--epochs', type=int, default=25,
+                        help='number of total epochs to run (default: 25)')
+    parser.add_argument('--exp', type=str, default='./exps/',
+                        help='path to exp folder (default: ./exps/)')
+    parser.add_argument('--augment', action='store_true', help='To augment data', default=False)
+    parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini'],
+                        default='VGGMiniCBR', help='Choice of model (default: VGGMiniCBR)')
+
+    args = parser.parse_args()
+
+
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
               "sandal", "shirt", "sneaker", "bag", "ankle boot"]
 
-fcn = lambda step: 1. / (1. + INIT_LR / NUM_EPOCHS * step)
+# fcn = lambda step: 1. / (1. + INIT_LR / NUM_EPOCHS * step)
 use_zca = False
 if not os.path.exists("./statistics"):
     os.makedirs("./statistics")
@@ -46,12 +70,10 @@ mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
 
 criterion = nn.CrossEntropyLoss()
 
+best_pred = -100.0
+
 
 # print((mean_std[use_zca][0],), (mean_std[use_zca][1],))
-#
-# exit()
-# print(W.shape)
-# exit()
 
 
 def imshow(image, ax=None, title=None, normalize=True):
@@ -106,13 +128,14 @@ def view_classify(img, ps, version="Fashion"):
     ax2.set_xlim(0, 1.1)
 
 
-def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval):
+def train(model, device, train_loader, optimizer, epoch, log_interval, scheduler=None):
+    global args
     model.train()
     correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         if use_zca:
-            data = torch.matmul(data.reshape((BS, 1 * 28 * 28)), W)
-            data = data.reshape((BS, 1, 28, 28))
+            data = torch.matmul(data.reshape((args.batch, 1 * 28 * 28)), W)
+            data = data.reshape((args.batch, 1, 28, 28))
 
         # data tensor(-0.8102) tensor(2.0227) torch.Size([256, 1, 28, 28])
 
@@ -125,7 +148,8 @@ def train(model, device, train_loader, optimizer, scheduler, epoch, log_interval
 
         optimizer.step()
 
-        # scheduler.step()
+        if scheduler:
+            scheduler.step()
 
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         correct += pred.eq(target.view_as(pred)).sum().item()
@@ -149,10 +173,9 @@ def test(model, device, test_loader, epoch):
     with torch.no_grad():
         for data, target in test_loader:
 
-
             if use_zca:
-                data = torch.matmul(data.reshape((VAL_BS, 1 * 28 * 28)), W)
-                data = data.reshape((VAL_BS, 1, 28, 28))
+                data = torch.matmul(data.reshape((args.valbatch, 1 * 28 * 28)), W)
+                data = data.reshape((args.valbatch, 1, 28, 28))
 
             data, target = data.to(device), target.to(device)
             output = model(data)
@@ -171,6 +194,7 @@ def test(model, device, test_loader, epoch):
     print('Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
+    return 100. * correct / len(test_loader.dataset)
 
 
 def cls_report(model, device, test_loader):
@@ -181,8 +205,8 @@ def cls_report(model, device, test_loader):
     with torch.no_grad():
         for data, target in test_loader:
             if use_zca:
-                data = torch.matmul(data.reshape((VAL_BS, 1 * 28 * 28)), W)
-                data = data.reshape((VAL_BS, 1, 28, 28))
+                data = torch.matmul(data.reshape((args.valbatch, 1 * 28 * 28)), W)
+                data = data.reshape((args.valbatch, 1, 28, 28))
 
             data = data.to(device)
             output = model(data)
@@ -200,6 +224,7 @@ def cls_report(model, device, test_loader):
 
 
 def main():
+    global best_pred
     use_cuda = torch.cuda.is_available()
 
     # fix random seeds
@@ -211,42 +236,46 @@ def main():
 
     kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 
+    basic_transform = [transforms.ToTensor(),
+                       transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))]
+    if args.augment:
+        print('Augmenting training data')
+        train_transform = [transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
+                                                   shear=5)] + basic_transform
+    else:
+        print('Not Augmenting training data')
+        train_transform = basic_transform
+
     # Download and load the training data
     # Download and load the test data
     train_loader = torch.utils.data.DataLoader(
-        datasets.FashionMNIST('data/', train=True, download=True,
-                              transform=transforms.Compose([
-                                  transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
-                                                          shear=5),
-                                  # transforms.RandomHorizontalFlip(),
-                                  transforms.ToTensor(),
-                                  transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
-                              ])),
-        batch_size=BS, shuffle=True, **kwargs)
+        datasets.FashionMNIST('data/', train=True, download=True, transform=transforms.Compose(train_transform)),
+        batch_size=args.batch, shuffle=True, **kwargs)
     test_loader = torch.utils.data.DataLoader(
-        datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))
-        ])),
-        batch_size=VAL_BS, shuffle=True, **kwargs)
+        datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose(basic_transform)),
+        batch_size=args.valbatch, shuffle=True, **kwargs)
 
-    model = VGGMiniCBR(num_classes=10)
+    # model = VGGMiniCBR(num_classes=10)
+    model = models.__dict__[args.model](num_classes=10)
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = nn.DataParallel(model)
     model.to(device)
     criterion.to(device)
 
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     # optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
-    scheduler = LambdaLR(optimizer, lr_lambda=fcn)
+    # scheduler = LambdaLR(optimizer, lr_lambda=fcn)
 
-    for epoch in range(1, NUM_EPOCHS + 1):
-        train(model, device, train_loader, optimizer, scheduler, epoch, log_interval=50)
-        test(model, device, test_loader, epoch)
+    for epoch in range(1, args.epochs + 1):
+        train(model, device, train_loader, optimizer, epoch, log_interval=50)
+        score = test(model, device, test_loader, epoch)
 
+        if score > best_pred:
+            best_pred = score
+            torch.save(model.state_dict(), os.path.join(args.exp, "mnist_cnn.pt"))
+            print("Model saved at ", os.path.join(args.exp, "mnist_cnn.pt"))
     cls_report(model, device, test_loader)
-    # torch.save(model.state_dict(), "fashionmnist_cnn_wo_lastconv.pt")
 
 
 if __name__ == '__main__':
@@ -256,6 +285,15 @@ if __name__ == '__main__':
     # hflip: 0.5  # randomly flip image horizontlly
     # augmentations = {"rscale": True, "rcrop": 712, "hflip": 0.5}
     # data_aug = get_composed_augmentations(augmentations)
-    exp_path = "./exps/25epochs/moderate_256_adam_CELoss"
-    writer = SummaryWriter(log_dir=exp_path)
+    parse_args()
+
+    model_name = args.model.lower()
+    augment = "noaugment"
+    if args.augment:
+        augment = "augment"
+
+    strr = model_name + '_' + augment
+
+    args.exp = os.path.join(args.exp, strr)
+    writer = SummaryWriter(log_dir=args.exp)
     main()
