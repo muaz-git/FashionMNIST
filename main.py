@@ -23,14 +23,6 @@ import os
 from utils import save_zca
 import argparse
 
-max_entropy = torch.log(torch.tensor(10.0))
-percentile = 0.15
-threshold = percentile * max_entropy
-threshold = threshold.data.numpy()
-
-
-# mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
-# with zca mean : tensor(0.0856)  std:  tensor(0.8943) statistics of FashionMNIST
 
 def parse_args():
     global args
@@ -51,8 +43,20 @@ def parse_args():
     parser.add_argument('--augment', action='store_true', help='To augment data', default=False)
 
     parser.add_argument('--bayes', type=int, default=0,
-                        help='To use MCDropout with args.bayes samples. default(0 or not using)')
+                        help='To use MCDropout with args.bayes samples. default(0 for not using)')
+    parser.add_argument('--percentile', type=float, default=0.15,
+                        help='When using MCDropout, percentile threshold is used to ignore predicitons where entropy is higher than a particular threshold. default(0.15)')
     args = parser.parse_args()
+
+
+parse_args()
+max_entropy = torch.log(torch.tensor(10.0))
+percentile = args.percentile
+threshold = percentile * max_entropy
+threshold = threshold.data.numpy()
+
+# mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
+# with zca mean : tensor(0.0856)  std:  tensor(0.8943) statistics of FashionMNIST
 
 
 labelNames = ["top", "trouser", "pullover", "dress", "coat",
@@ -293,6 +297,50 @@ def test_mcdropout(model, device, test_loader, epoch):
     return 100. * correct / len(test_loader.dataset)
 
 
+def cls_report_mcdropout(model, device, test_loader):
+    model.eval()
+    all_targ = []
+    all_pred = []
+
+    n_samples = args.bayes
+    print('n_samples : {}'.format(n_samples))
+
+    for data, target in test_loader:
+        if use_zca:
+            data = torch.matmul(data.reshape((args.valbatch, 1 * 28 * 28)), W)
+            data = data.reshape((args.valbatch, 1, 28, 28))
+
+        data, target = data.to(device), target.to(device)
+
+        model_out = None
+        for q in range(n_samples):
+            with torch.no_grad():
+                if model_out is None:
+                    model_out = model(data).detach().data
+                else:
+                    model_out = model_out + model(data).detach().data
+
+        model_out = model_out / n_samples
+
+        # masking predictions where entropy is high
+        model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
+        model_out = model_out.unsqueeze(2).unsqueeze(3)
+
+        masked_pred = get_masked_pred(model_out)
+        masked_pred = masked_pred.squeeze()  # (1000, )
+        masked_pred = torch.from_numpy(masked_pred).to(device)
+
+        pred = list(np.squeeze(masked_pred.cpu().detach().numpy()))
+        target = list(target.numpy())
+
+        all_targ += target
+        all_pred += pred
+
+    print("evaluating network...")
+    print(classification_report(all_targ, all_pred,
+                                target_names=labelNames))
+
+
 def cls_report(model, device, test_loader):
     model.eval()
     all_targ = []
@@ -369,12 +417,15 @@ def main():
             score = test_mcdropout(model, device, test_loader, epoch)
         else:
             score = test(model, device, test_loader, epoch)
-        # score = 0
+
         if score > best_pred:
             best_pred = score
             torch.save(model.state_dict(), os.path.join(args.exp, "mnist_cnn.pt"))
             print("Model saved at ", os.path.join(args.exp, "mnist_cnn.pt"))
-    cls_report(model, device, test_loader)
+    if args.bayes:
+        cls_report_mcdropout(model, device, test_loader)
+    else:
+        cls_report(model, device, test_loader)
 
 
 if __name__ == '__main__':
@@ -384,7 +435,6 @@ if __name__ == '__main__':
     # hflip: 0.5  # randomly flip image horizontlly
     # augmentations = {"rscale": True, "rcrop": 712, "hflip": 0.5}
     # data_aug = get_composed_augmentations(augmentations)
-    parse_args()
 
     model_name = args.model.lower()
     augment = "noaugment"
@@ -392,7 +442,7 @@ if __name__ == '__main__':
         augment = "augment"
     bayes = "nobayes"
     if args.bayes:
-        bayes = "bayes" + str(args.bayes)
+        bayes = "bayes" + str(args.bayes) + '_per' + str(percentile)
     strr = model_name + '_' + augment + '_' + bayes
 
     args.exp = os.path.join(args.exp, strr)

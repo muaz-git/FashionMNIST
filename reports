@@ -1,3 +1,10 @@
+Commands:
+CUDA_VISIBLE_DEVICES=1 python main.py --model=VGGMini
+CUDA_VISIBLE_DEVICES=0 python main.py
+CUDA_VISIBLE_DEVICES=0 python main.py --augment
+CUDA_VISIBLE_DEVICES=0 python main.py --augment --bayes=25
+CUDA_VISIBLE_DEVICES=1 python main.py --augment --bayes=25 --percentile=0.25
+
 No augmentation or normalization
 BS = 32
 INIT_LR = 1e-2
