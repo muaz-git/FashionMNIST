@@ -50,6 +50,8 @@ def parse_args():
                         help='path to exp folder (default: ./exps/)')
     parser.add_argument('--augment', action='store_true', help='To augment data', default=False)
 
+    parser.add_argument('--bayes', type=int, default=0,
+                        help='To use MCDropout with args.bayes samples. default(0 or not using)')
     args = parser.parse_args()
 
 
@@ -241,7 +243,7 @@ def test_mcdropout(model, device, test_loader, epoch):
     print('Applying MC Dropout')
     model.apply(apply_dropout)
 
-    n_samples = 10
+    n_samples = args.bayes
     test_loss = 0
     correct = 0
     print('n_samples : {}'.format(n_samples))
@@ -363,8 +365,10 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         train(model, device, train_loader, optimizer, epoch, log_interval=50)
-        # score = test(model, device, test_loader, epoch)
-        score = test_mcdropout(model, device, test_loader, epoch)
+        if args.bayes > 0:
+            score = test_mcdropout(model, device, test_loader, epoch)
+        else:
+            score = test(model, device, test_loader, epoch)
         # score = 0
         if score > best_pred:
             best_pred = score
@@ -386,8 +390,10 @@ if __name__ == '__main__':
     augment = "noaugment"
     if args.augment:
         augment = "augment"
-
-    strr = model_name + '_' + augment
+    bayes = "nobayes"
+    if args.bayes:
+        bayes = "bayes" + str(args.bayes)
+    strr = model_name + '_' + augment + '_' + bayes
 
     args.exp = os.path.join(args.exp, strr)
     writer = SummaryWriter(log_dir=args.exp)
