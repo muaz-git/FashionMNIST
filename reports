@@ -1,9 +1,10 @@
 Commands:
-CUDA_VISIBLE_DEVICES=1 python main.py --model=VGGMini
-CUDA_VISIBLE_DEVICES=0 python main.py
-CUDA_VISIBLE_DEVICES=0 python main.py --augment
-CUDA_VISIBLE_DEVICES=0 python main.py --augment --bayes=25
-CUDA_VISIBLE_DEVICES=1 python main.py --augment --bayes=25 --percentile=0.25
+CUDA_VISIBLE_DEVICES=1 python main.py --model=VGGMini # 94 % accuracy
+CUDA_VISIBLE_DEVICES=0 python main.py 94 % but stable
+CUDA_VISIBLE_DEVICES=0 python main.py --augment 95%
+
+CUDA_VISIBLE_DEVICES=0 python main.py --augment --bayes=25 # 90 %
+CUDA_VISIBLE_DEVICES=1 python main.py --augment --bayes=25 --percentile=0.25 92%
 
 No augmentation or normalization
 BS = 32

@@ -55,6 +55,7 @@ height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))  # float
 print(width)
 print(height)
 
+
 def validate_bbox(bbox):
     for el in bbox:
         if el < 0:
@@ -96,7 +97,7 @@ while True:
             # cv2.imshow("Show", obj)
             # cv2.waitKey()
             pred, cls_name = get_prediction(model, obj)
-            c+=1
+            c += 1
         else:
             print(obj_box)
 

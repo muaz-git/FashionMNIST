@@ -4,13 +4,10 @@ Created on Sat Aug 16 12:46:14 2019
 
 @author: Muaz Usmani
 """
-import matplotlib
-
-matplotlib.use("Agg")
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
+
 from torchvision import datasets, transforms
 from torch import nn
 from torch import optim
@@ -18,10 +15,10 @@ import torch.nn.functional as F
 import models
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
-from torch.optim.lr_scheduler import LambdaLR
 import os
 from utils import save_zca
 import argparse
+from utils import apply_dropout, get_masked_pred
 
 
 def parse_args():
@@ -79,58 +76,6 @@ best_pred = -100.0
 
 
 # print((mean_std[use_zca][0],), (mean_std[use_zca][1],))
-
-
-def imshow(image, ax=None, title=None, normalize=True):
-    """Imshow for Tensor."""
-    if ax is None:
-        fig, ax = plt.subplots()
-    image = np.squeeze(image.numpy())
-
-    if normalize:
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-        image = std * image + mean
-        image = np.clip(image, 0, 1)
-
-    ax.imshow(image)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.tick_params(axis='both', length=0)
-    ax.set_xticklabels('')
-    ax.set_yticklabels('')
-
-    return ax
-
-
-def view_classify(img, ps, version="Fashion"):
-    ''' Function for viewing an image and it's predicted classes.
-    '''
-    ps = ps.data.numpy().squeeze()
-
-    fig, (ax1, ax2) = plt.subplots(figsize=(6, 9), ncols=2)
-    ax1.imshow(img.resize_(1, 28, 28).numpy().squeeze())
-    ax1.axis('off')
-    ax2.barh(np.arange(10), ps)
-    ax2.set_aspect(0.1)
-    ax2.set_yticks(np.arange(10))
-    if version == "MNIST":
-        ax2.set_yticklabels(np.arange(10))
-    elif version == "Fashion":
-        ax2.set_yticklabels(['T-shirt/top',
-                             'Trouser',
-                             'Pullover',
-                             'Dress',
-                             'Coat',
-                             'Sandal',
-                             'Shirt',
-                             'Sneaker',
-                             'Bag',
-                             'Ankle Boot'], size='small')
-    ax2.set_title('Class Probability')
-    ax2.set_xlim(0, 1.1)
 
 
 def train(model, device, train_loader, optimizer, epoch, log_interval, scheduler=None):
@@ -202,45 +147,6 @@ def test(model, device, test_loader, epoch):
     return 100. * correct / len(test_loader.dataset)
 
 
-def apply_dropout(m):
-    if type(m) == nn.modules.dropout.Dropout2d:
-        m.train()
-
-
-def get_masked_pred(mean_pred):
-    '''
-    :param tnsr: shape (B, C, W, H)
-    :return: entropy vector of shape (BxWxH,)
-    '''
-    # mean_pred = torch.mean(tnsr, dim=0)  # (B, C, W, H)
-
-    mean_pred = mean_pred.permute(1, 0, 2, 3)  # (C, B, W, H) -4.1693, 4.6553
-    # print('mean_pred: ', mean_pred.shape)
-    # mean_pred = mean_pred #.contiguous().view(C, -1)  # (C, BxWxH)
-
-    mean_probs = torch.nn.Softmax(dim=0)(mean_pred)  # 0.0005, 0.7798, [19, 10, 28, 28]
-    maxed_pred = mean_probs.data.max(0)[1].numpy()  # (10, 28, 28), 0, 18 --> (BS, 1)
-
-    # print('Probs ', mean_probs.size(), mean_probs.min(), mean_probs.max())
-    log_probs = torch.log(mean_probs)  # [19, 10, 28, 28], -7.6821, -0.2487-> [10, BS, 1]
-    # print('logs ', log_probs.size(), log_probs.min(), log_probs.max())
-    mult = mean_probs * log_probs  # [19, 10, 28, 28], -0.3679, -0.0035 -> [10, BS, 1]
-
-    entropy = -torch.sum(mult, dim=0).numpy()  # (10, 28, 28), 0.9850448, 2.9022176 -> [BS, 1]
-
-    preds = {}
-    # for th in thresholds_arr:
-    mask = np.where(entropy <= threshold, 1, 0)  # (10, 28, 28), 0, 0-> [BS, 1]
-    # non_zeros = np.count_nonzero(mask)
-
-    masked_pred = mask * maxed_pred
-    # preds[str(th)] = masked_pred
-    #
-    # preds[str(th) + "_accepted"] = non_zeros
-
-    return masked_pred  # , non_zeros
-
-
 def test_mcdropout(model, device, test_loader, epoch):
     # this function follows https://arxiv.org/pdf/1506.02142.pdf to generate distribution of classes instead of point-estimating
     model.eval()
@@ -276,7 +182,7 @@ def test_mcdropout(model, device, test_loader, epoch):
         model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
         model_out = model_out.unsqueeze(2).unsqueeze(3)
 
-        masked_pred = get_masked_pred(model_out)
+        masked_pred = get_masked_pred(model_out, threshold)
         masked_pred = masked_pred.squeeze()  # (1000, )
         masked_pred = torch.from_numpy(masked_pred).to(device)
 
@@ -310,7 +216,7 @@ def cls_report_mcdropout(model, device, test_loader):
             data = torch.matmul(data.reshape((args.valbatch, 1 * 28 * 28)), W)
             data = data.reshape((args.valbatch, 1, 28, 28))
 
-        data, target = data.to(device), target.to(device)
+        data = data.to(device)
 
         model_out = None
         for q in range(n_samples):
@@ -326,7 +232,7 @@ def cls_report_mcdropout(model, device, test_loader):
         model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
         model_out = model_out.unsqueeze(2).unsqueeze(3)
 
-        masked_pred = get_masked_pred(model_out)
+        masked_pred = get_masked_pred(model_out, threshold)
         masked_pred = masked_pred.squeeze()  # (1000, )
         masked_pred = torch.from_numpy(masked_pred).to(device)
 
@@ -412,6 +318,7 @@ def main():
     # scheduler = LambdaLR(optimizer, lr_lambda=fcn)
 
     for epoch in range(1, args.epochs + 1):
+
         train(model, device, train_loader, optimizer, epoch, log_interval=50)
         if args.bayes > 0:
             score = test_mcdropout(model, device, test_loader, epoch)
