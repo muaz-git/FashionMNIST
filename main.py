@@ -23,7 +23,7 @@ from utils import apply_dropout, get_masked_pred
 
 def parse_args():
     global args
-    parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
+    parser = argparse.ArgumentParser(description='PyTorch Implementation on FashionMNIST.')
 
     parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini'],
                         default='VGGMiniCBR', help='Choice of model (default: VGGMiniCBR)')
@@ -41,8 +41,8 @@ def parse_args():
 
     parser.add_argument('--bayes', type=int, default=0,
                         help='To use MCDropout with args.bayes samples. default(0 for not using)')
-    parser.add_argument('--percentile', type=float, default=0.15,
-                        help='When using MCDropout, percentile threshold is used to ignore predicitons where entropy is higher than a particular threshold. default(0.15)')
+    parser.add_argument('--percentile', type=float, default=0.25,
+                        help='When using MCDropout, percentile threshold is used to ignore predicitons where entropy is higher than a particular threshold. (default 0.25)')
     args = parser.parse_args()
 
 
@@ -182,7 +182,7 @@ def test_mcdropout(model, device, test_loader, epoch):
         model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
         model_out = model_out.unsqueeze(2).unsqueeze(3)
 
-        masked_pred = get_masked_pred(model_out, threshold)
+        masked_pred, _ = get_masked_pred(model_out, threshold)
         masked_pred = masked_pred.squeeze()  # (1000, )
         masked_pred = torch.from_numpy(masked_pred).to(device)
 
@@ -232,7 +232,7 @@ def cls_report_mcdropout(model, device, test_loader):
         model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
         model_out = model_out.unsqueeze(2).unsqueeze(3)
 
-        masked_pred = get_masked_pred(model_out, threshold)
+        masked_pred, _ = get_masked_pred(model_out, threshold)
         masked_pred = masked_pred.squeeze()  # (1000, )
         masked_pred = torch.from_numpy(masked_pred).to(device)
 

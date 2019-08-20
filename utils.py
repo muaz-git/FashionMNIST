@@ -119,9 +119,9 @@ def get_masked_pred(mean_pred, threshold):
 
     entropy = -torch.sum(mult, dim=0).numpy()  # (10, 28, 28), 0.9850448, 2.9022176 -> [BS, 1]
 
-    preds = {}
     # for th in thresholds_arr:
     mask = np.where(entropy <= threshold, 1, 0)  # (10, 28, 28), 0, 0-> [BS, 1]
+
     # non_zeros = np.count_nonzero(mask)
 
     masked_pred = mask * maxed_pred
@@ -129,4 +129,4 @@ def get_masked_pred(mean_pred, threshold):
     #
     # preds[str(th) + "_accepted"] = non_zeros
 
-    return masked_pred  # , non_zeros
+    return masked_pred, maxed_pred  # , non_zeros
