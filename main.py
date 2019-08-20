@@ -23,11 +23,10 @@ import os
 from utils import save_zca
 import argparse
 
-
-# BS = 256  # 256
-# VAL_BS = 1000  # 256
-# INIT_LR = 1e-2
-# NUM_EPOCHS = 25
+max_entropy = torch.log(torch.tensor(10.0))
+percentile = 0.15
+threshold = percentile * max_entropy
+threshold = threshold.data.numpy()
 
 
 # mean : tensor(0.2860)  std:  tensor(0.3530) statistics of FashionMNIST
@@ -36,7 +35,9 @@ import argparse
 def parse_args():
     global args
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
-    #
+
+    parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini'],
+                        default='VGGMiniCBR', help='Choice of model (default: VGGMiniCBR)')
     parser.add_argument('--batch', default=256, type=int,
                         help='mini-batch size (default: 256)')
     parser.add_argument('--valbatch', default=1000, type=int,
@@ -48,8 +49,6 @@ def parse_args():
     parser.add_argument('--exp', type=str, default='./exps/',
                         help='path to exp folder (default: ./exps/)')
     parser.add_argument('--augment', action='store_true', help='To augment data', default=False)
-    parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini'],
-                        default='VGGMiniCBR', help='Choice of model (default: VGGMiniCBR)')
 
     args = parser.parse_args()
 
@@ -197,6 +196,101 @@ def test(model, device, test_loader, epoch):
     return 100. * correct / len(test_loader.dataset)
 
 
+def apply_dropout(m):
+    if type(m) == nn.modules.dropout.Dropout2d:
+        m.train()
+
+
+def get_masked_pred(mean_pred):
+    '''
+    :param tnsr: shape (B, C, W, H)
+    :return: entropy vector of shape (BxWxH,)
+    '''
+    # mean_pred = torch.mean(tnsr, dim=0)  # (B, C, W, H)
+
+    mean_pred = mean_pred.permute(1, 0, 2, 3)  # (C, B, W, H) -4.1693, 4.6553
+    # print('mean_pred: ', mean_pred.shape)
+    # mean_pred = mean_pred #.contiguous().view(C, -1)  # (C, BxWxH)
+
+    mean_probs = torch.nn.Softmax(dim=0)(mean_pred)  # 0.0005, 0.7798, [19, 10, 28, 28]
+    maxed_pred = mean_probs.data.max(0)[1].numpy()  # (10, 28, 28), 0, 18 --> (BS, 1)
+
+    # print('Probs ', mean_probs.size(), mean_probs.min(), mean_probs.max())
+    log_probs = torch.log(mean_probs)  # [19, 10, 28, 28], -7.6821, -0.2487-> [10, BS, 1]
+    # print('logs ', log_probs.size(), log_probs.min(), log_probs.max())
+    mult = mean_probs * log_probs  # [19, 10, 28, 28], -0.3679, -0.0035 -> [10, BS, 1]
+
+    entropy = -torch.sum(mult, dim=0).numpy()  # (10, 28, 28), 0.9850448, 2.9022176 -> [BS, 1]
+
+    preds = {}
+    # for th in thresholds_arr:
+    mask = np.where(entropy <= threshold, 1, 0)  # (10, 28, 28), 0, 0-> [BS, 1]
+    # non_zeros = np.count_nonzero(mask)
+
+    masked_pred = mask * maxed_pred
+    # preds[str(th)] = masked_pred
+    #
+    # preds[str(th) + "_accepted"] = non_zeros
+
+    return masked_pred  # , non_zeros
+
+
+def test_mcdropout(model, device, test_loader, epoch):
+    # this function follows https://arxiv.org/pdf/1506.02142.pdf to generate distribution of classes instead of point-estimating
+    model.eval()
+    print('Applying MC Dropout')
+    model.apply(apply_dropout)
+
+    n_samples = 10
+    test_loss = 0
+    correct = 0
+    print('n_samples : {}'.format(n_samples))
+    for data, target in test_loader:
+        if use_zca:
+            data = torch.matmul(data.reshape((args.valbatch, 1 * 28 * 28)), W)
+            data = data.reshape((args.valbatch, 1, 28, 28))
+
+        data, target = data.to(device), target.to(device)
+
+        model_out = None
+        for q in range(n_samples):
+            with torch.no_grad():
+                if model_out is None:
+                    model_out = model(data).detach().data
+                else:
+                    model_out = model_out + model(data).detach().data
+
+        model_out = model_out / n_samples
+
+        output = F.log_softmax(model_out, dim=1)
+        output = output.to(device)
+        test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+
+        # masking predictions where entropy is high
+        model_out = model_out.cpu()  # [1000, 10] --> [BS, C] -> shape (B, C, W, H)
+        model_out = model_out.unsqueeze(2).unsqueeze(3)
+
+        masked_pred = get_masked_pred(model_out)
+        masked_pred = masked_pred.squeeze()  # (1000, )
+        masked_pred = torch.from_numpy(masked_pred).to(device)
+
+        # output = F.log_softmax(model_out, dim=1)
+        # test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+
+        # # _, pred = torch.max(output.data, 1)
+        correct += masked_pred.eq(target.view_as(masked_pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+
+    writer.add_scalar('loss/test', test_loss, epoch - 1)
+    writer.add_scalar('accuracy/test', 100. * correct / len(test_loader.dataset), epoch - 1)
+
+    print('Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+    return 100. * correct / len(test_loader.dataset)
+
+
 def cls_report(model, device, test_loader):
     model.eval()
     all_targ = []
@@ -224,7 +318,7 @@ def cls_report(model, device, test_loader):
 
 
 def main():
-    global best_pred
+    global best_pred, criterion
     use_cuda = torch.cuda.is_available()
 
     # fix random seeds
@@ -260,8 +354,8 @@ def main():
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = nn.DataParallel(model)
-    model.to(device)
-    criterion.to(device)
+    model = model.to(device)
+    criterion = criterion.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     # optimizer = optim.SGD(model.parameters(), lr=INIT_LR, momentum=0.9)
@@ -269,8 +363,9 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         train(model, device, train_loader, optimizer, epoch, log_interval=50)
-        score = test(model, device, test_loader, epoch)
-
+        # score = test(model, device, test_loader, epoch)
+        score = test_mcdropout(model, device, test_loader, epoch)
+        # score = 0
         if score > best_pred:
             best_pred = score
             torch.save(model.state_dict(), os.path.join(args.exp, "mnist_cnn.pt"))

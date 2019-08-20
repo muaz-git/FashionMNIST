@@ -1,5 +1,9 @@
 This repository (is a work in progress) focuses on solving [FashionMNIST](https://github.com/zalandoresearch/fashion-mnist) using different architectures. Further details wil be updated soon.
 
+####Training and evaluation
+Run `python main.py --model=VGGMiniCBR --batch=256 --valbatch=1000 --lr=0.001 --epochs=25 --exp=/path/to/exps --augment `
+
+Run `python main.py -h` to understand the purpose of each argument. 
 ##### Object deteciton in video
 To detect objects in a video, first generate some proposals using [imageai](https://github.com/OlafenwaMoses/ImageAI). Follow [this tutorial](https://towardsdatascience.com/object-detection-with-10-lines-of-code-d6cb4d86f606) to setup imageai.
 
