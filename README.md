@@ -1,3 +1,5 @@
+This repository (is a work in progress) focuses on solving [FashionMNIST](https://github.com/zalandoresearch/fashion-mnist) using different architectures. Further details wil be updated soon.
+
 ##### Object deteciton in video
 To detect objects in a video, first generate some proposals using [imageai](https://github.com/OlafenwaMoses/ImageAI). Follow [this tutorial](https://towardsdatascience.com/object-detection-with-10-lines-of-code-d6cb4d86f606) to setup imageai.
 
