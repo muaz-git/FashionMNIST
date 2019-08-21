@@ -305,6 +305,7 @@ def main():
         datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose(basic_transform)),
         batch_size=args.valbatch, shuffle=True, **kwargs)
 
+
     # model = VGGMiniCBR(num_classes=10)
     model = models.__dict__[args.model](num_classes=10)
     # if torch.cuda.device_count() > 1:

@@ -117,10 +117,13 @@ def get_prediction_bayes(model, img):
 def get_prediction(model, img):
     # img to tensor
     model.eval()
-    tr = transforms.Compose([transforms.CenterCrop((28, 28)),
-                             transforms.ToTensor(),
-                             transforms.Normalize((0.2860,), (0.3530,))
-                             ])
+    tr = transforms.Compose([
+        transforms.Resize(100),
+        transforms.RandomCrop((100, 100)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.2860,), (0.3530,))
+    ])
+
     img = Image.fromarray(img)
 
     ximg_tnsr = tr(img)
@@ -128,14 +131,16 @@ def get_prediction(model, img):
     ximg_tnsr = ximg_tnsr.to(device)
     ximg_tnsr = ximg_tnsr.unsqueeze(0)
 
+    # unique_filename = "./outs/" + str(uuid.uuid4()) + ".png"
+    # torchvision.utils.save_image(ximg_tnsr, unique_filename)
+    # return 0, '1'
+
     output = model(ximg_tnsr)
     output = F.log_softmax(output, dim=1)
 
     pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
     pred = pred.cpu().numpy().item()
 
-    unique_filename = "./outs/" + labelNames[pred] + "_" + str(uuid.uuid4()) + ".png"
-    torchvision.utils.save_image(ximg_tnsr, unique_filename)
     return pred, labelNames[pred]
 
 
@@ -166,7 +171,10 @@ model.to(device)
 fn = 0
 
 fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-out = cv2.VideoWriter('./output-bayes25.avi', fourcc, 30, (int(width / 2), int(height / 2)))
+txt = "nobayes"
+if args.bayes:
+    txt = "bayes" + str(args.bayes)
+out = cv2.VideoWriter('./output-' + txt + '.avi', fourcc, 30, (int(width / 2), int(height / 2)))
 if args.bayes:
     print("Using MC Dropout.")
 while True:

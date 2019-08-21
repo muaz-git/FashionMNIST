@@ -11,6 +11,7 @@ import torchvision.models as models
 import torch.nn.functional as F
 import time
 import numpy as np
+import math
 
 __all__ = ['VGGMini', 'VGGMiniCBR']
 
@@ -127,13 +128,34 @@ class VGGMiniCBR(nn.Module):  # overall graph is above than CRB method.
         # return F.log_softmax(x, dim=1)
 
 
+def get_n_params(model):
+    def millify(n):
+        millnames = ['', ' Thousand', ' Million', ' Billion', ' Trillion']
+        n = float(n)
+        millidx = max(0, min(len(millnames) - 1,
+                             int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
+
+        return '{:.0f}{}'.format(n / 10 ** (3 * millidx), millnames[millidx])
+    pp = 0
+    for p in list(model.parameters()):
+        nn = 1
+        for s in list(p.size()):
+            nn = nn * s
+        pp += nn
+    return millify(pp)
+
+
 if __name__ == '__main__':
-    m = VGGMiniCBR(num_classes=10)  # 0.003 for 32 imgs 1 channel
+    m = VGGMini(num_classes=10)  # 0.00263 for 32 imgs 1 channel
+    # m = VGGMiniCBR(num_classes=10)  # 0.00255 for 32 imgs 1 channel
+    # x = get_n_params(m)
+    # print(x)
+    # exit()
     # m = models.resnet18(pretrained=True)  # 0.0299 for 32 imgs of 3 channles
     # m = models.resnet34(pretrained=True)  # 0.0442 for 32 imgs of 3 channles
     # model = WideResNet(depth=40, num_classes=10) # Average: 0.0071  for 32 imgs of 3 channles  0.007
     # m = models.mobilenet_v2(pretrained=False)  # 0.05622  for 32 imgs of 3 channles
-
+    # m = models.
     # print(m)
     # exit()
     m.cuda(0)
@@ -142,9 +164,10 @@ if __name__ == '__main__':
     for t in range(100):
         et = time.time()
         m(x)
-        exit()
+
         ts.append(time.time() - et)
 
     print('Average :', np.average(ts))
 
+    exit()
     # print(m)
