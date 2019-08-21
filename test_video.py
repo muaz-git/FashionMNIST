@@ -4,11 +4,13 @@ import cv2
 import json
 from models import VGGMiniCBR
 from torchvision import transforms
+import torchvision
 from PIL import Image
 import torch.nn.functional as F
 import argparse
 import models
-from utils import apply_dropout, get_masked_pred
+from utils import apply_dropout, get_masked_pred, bb_intersection_over_union
+import uuid
 
 args = None
 
@@ -74,10 +76,12 @@ def get_prediction_bayes(model, img):
     n_samples = args.bayes
     # print('n_samples : {}'.format(n_samples))
 
-    tr = transforms.Compose([transforms.CenterCrop((28, 28)),
-                             transforms.ToTensor(),
-                             transforms.Normalize((0.2860,), (0.3530,))
-                             ])
+    tr = transforms.Compose([
+        transforms.Resize(28),
+        transforms.RandomCrop((28, 28)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.2860,), (0.3530,))
+    ])
     img = Image.fromarray(img)
 
     ximg_tnsr = tr(img)
@@ -103,7 +107,7 @@ def get_prediction_bayes(model, img):
 
     masked_pred = masked_pred.squeeze()  # (1000, )
     maxed_pred = maxed_pred.squeeze()  # (1000, )
-    if not masked_pred == maxed_pred: # means that it is dropped
+    if not masked_pred == maxed_pred:  # means that it is dropped
         return -1, -1
 
     else:
@@ -130,7 +134,19 @@ def get_prediction(model, img):
     pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
     pred = pred.cpu().numpy().item()
 
+    unique_filename = "./outs/" + labelNames[pred] + "_" + str(uuid.uuid4()) + ".png"
+    torchvision.utils.save_image(ximg_tnsr, unique_filename)
     return pred, labelNames[pred]
+
+
+def remove_overlaps(proposals):
+    for obj1 in proposals:
+        for obj2 in proposals:
+            iou = bb_intersection_over_union(obj1, obj2)
+            if iou > 0.1:
+                proposals.remove(obj2)
+
+    return proposals
 
 
 with open(json_path) as handle:
@@ -151,7 +167,8 @@ fn = 0
 
 fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 out = cv2.VideoWriter('./output-bayes25.avi', fourcc, 30, (int(width / 2), int(height / 2)))
-
+if args.bayes:
+    print("Using MC Dropout.")
 while True:
     ret, frame = video.read()
     if not ret:
@@ -163,6 +180,7 @@ while True:
     gray_frame /= 255.
 
     proposals_lst = frame_objs_dict[str(fn)]
+    proposals_lst = remove_overlaps(proposals_lst)
 
     c = 0
     for obj_box in proposals_lst:

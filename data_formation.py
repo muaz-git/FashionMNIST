@@ -8,11 +8,15 @@ def get_num_files(direc):
     return len([name for name in os.listdir(direc) if os.path.isfile(direc+'/'+name)])
 
 
-labelNames = ["top", "trouser", "pullover", "dress", "coat",
-              "sandal", "shirt", "sneaker", "bag", "ankle_boot"]
+# labelNames = ["top", "trouser", "pullover", "dress", "coat",
+#               "sandal", "shirt", "sneaker", "bag", "ankle_boot"]
 
-split = 'train'
-root = './data/FashionMNIST/original/' + split
+labelNames = ["0", "1", "2", "3", "4",
+              "5", "6", "7", "8", "9"]
+
+split = 'val'
+# root = './data/FashionMNIST/original/' + split
+root = './data/MNIST/original/' + split
 
 if not os.path.exists(root):
     os.makedirs(root)
