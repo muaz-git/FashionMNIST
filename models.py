@@ -136,6 +136,7 @@ def get_n_params(model):
                              int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
 
         return '{:.0f}{}'.format(n / 10 ** (3 * millidx), millnames[millidx])
+
     pp = 0
     for p in list(model.parameters()):
         nn = 1
