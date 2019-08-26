@@ -16,7 +16,7 @@ warnings.warn = warn
 
 import matplotlib
 
-matplotlib.use("Agg")
+# matplotlib.use("Agg")
 
 import numpy as np
 import torch
@@ -38,6 +38,11 @@ import time
 import clustering
 from sklearn.metrics.cluster import normalized_mutual_info_score
 from torch.nn.parameter import Parameter
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix
+import networkx as nx
 
 use_zca = False
 mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
@@ -51,8 +56,10 @@ def parse_args():
 
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
+
     parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 100)')
+
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
@@ -78,6 +85,51 @@ def parse_args():
     parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
 
     args = parser.parse_args()
+
+
+def show_graph_with_labels(adjacency_matrix):
+    rows, cols = np.where(adjacency_matrix == 1)
+    edges = zip(rows.tolist(), cols.tolist())
+    gr = nx.Graph()
+    gr.add_edges_from(edges)
+    # nx.draw(gr, node_size=500, labels=mylabels, with_labels=True)
+    nx.draw(gr, node_size=50)
+    plt.show()
+
+
+def create_adj(lbl_arr):
+    row, col, data = [], [], []
+    for i in range(len(lbl_arr)):
+        row.append(i)
+        col.append(i)
+        # data.append(lbl_arr[i])
+        data.append(1)
+        for j in range(i + 1, len(lbl_arr)):
+            if lbl_arr[i] == lbl_arr[j]:
+                row.append(i)
+                col.append(j)
+                data.append(1)
+                row.append(j)
+                col.append(i)
+                data.append(1)
+
+    # code to add root node
+    unqs = np.unique(lbl_arr)
+    frst_idx = []
+    for el in unqs:
+        frst_idx.append(np.where(lbl_arr == el)[0][0])
+
+    for ex in frst_idx:
+        row.append(ex)
+        col.append(0)
+        data.append(1)
+
+        col.append(ex)
+        row.append(0)
+        data.append(1)
+
+    adj = csr_matrix((data, (row, col)), shape=(len(lbl_arr), len(lbl_arr))).toarray().astype(np.uint8)
+    return adj
 
 
 def main():
@@ -137,10 +189,42 @@ def main():
 
     # cluster the features
     clustering_loss = deepcluster.cluster(features, verbose=args.verbose)
-    deepcluster.images_lists
-    print(deepcluster.images_lists[0][0])
-    exit()
+    # deepcluster.images_lists each row is a cluster id, each column is a image id.
 
+    y = [-1 for i in range(60000)]
+    for clstr_id, clstr in enumerate(deepcluster.images_lists):
+        for img_id in clstr:
+            y[img_id] = clstr_id
+
+    pseudo_labels = np.array(y)  # (60000, )  0, 99
+    pseudo_labels = np.random.choice(pseudo_labels, 1000)
+    adj = create_adj(pseudo_labels)
+    show_graph_with_labels(adj)
+    exit()
+    pca = PCA(n_components=2)
+    features_2d = pca.fit_transform(features)
+
+    area = np.pi * 3
+
+    for lbl_id in range(args.nmb_cluster):
+        idx = np.where(pseudo_labels == lbl_id)
+        # print(len(idx[0]))
+        if len(idx[0]) > 1000:
+            idx = np.random.choice(idx[0], 1000)
+        sel = features_2d[idx]
+
+        x, y = sel[:, 0], sel[:, 1]
+
+        # plot
+        plt.scatter(x, y, s=area, alpha=0.5)
+
+    # plot
+    # plt.title('Feature visualization with ' + str(args.nmb_cluster) + " classes")
+    # plt.xlabel('x')
+    # plt.ylabel('y')
+    # plt.savefig(str(args.nmb_cluster) + " classes_sampled.png")
+    # plt.show()
+    exit()
     fd = int(model.top_layer.weight.size()[1])
 
     model.top_layer = None

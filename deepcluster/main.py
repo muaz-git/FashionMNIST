@@ -46,12 +46,16 @@ def parse_args():
     global args
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
     #
-    parser.add_argument('--data', metavar='DIR', help='path to dataset', default='../data/FashionMNIST/original/train')
+    parser.add_argument('--data', metavar='DIR', help='path to dataset', default='../data/MNIST/original/train')
 
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
-                        help='number of cluster for k-means (default: 100)')
+
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=10,
+                        help='number of cluster for k-means (default: 10)')
+    parser.add_argument('--epochs', type=int, default=50,
+                        help='number of total epochs to run (default: 50)')
+
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
@@ -61,8 +65,6 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=200,
-                        help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--batch', default=256, type=int,
@@ -73,7 +75,7 @@ def parse_args():
     parser.add_argument('--checkpoints', type=int, default=25000,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--exp', type=str, default='./exps/fresh/MNIST/100clusters', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='./exps/fresh/MNIST/10clusters', help='path to exp folder')
     parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
 
     args = parser.parse_args()
