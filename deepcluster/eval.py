@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from sklearn.metrics import classification_report
 
 import os, sys, inspect
+from torch.nn.parameter import Parameter
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -30,10 +31,16 @@ def parse_args():
     #
     # parser.add_argument('data', metavar='DIR', help='path to dataset', default='../data/FashionMNIST/original/train')
 
+    parser.add_argument('--epochs', type=int, default=5,
+                        help='number of total epochs to run (default: 5)')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to checkpoint (default: None)')
+    parser.add_argument('--exp', type=str, default='./exps/eval/FashionMNIST/loading100-freezing', help='path to exp folder')
+
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
-                        help='number of cluster for k-means (default: 100)')
+    # parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
+    #                     help='number of cluster for k-means (default: 100)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
@@ -43,8 +50,7 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=5,
-                        help='number of total epochs to run (default: 200)')
+
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--batch', default=256, type=int,
@@ -52,12 +58,11 @@ def parse_args():
     parser.add_argument('--valbatch', default=1000, type=int,
                         help='mini-batch size (default: 1000)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                        help='path to checkpoint (default: None)')
+
     parser.add_argument('--checkpoints', type=int, default=25000,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--exp', type=str, default='./exps/eval', help='path to exp folder')
+
     parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
 
     args = parser.parse_args()
@@ -75,7 +80,21 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
 
     model = VGGMiniCBR(num_classes=10)
+
+    # loading model
+    state_dict = torch.load(args.resume)
+    model_state = model.state_dict()
+    for name, param in state_dict.items():
+        if name not in model_state:
+            continue
+        if isinstance(param, Parameter):
+            # backwards compatibility for serialized parameters
+            param = param.data
+        if not (name == 'top_layer.weight' or name == 'top_layer.bias'):
+            model_state[name].copy_(param)
+
     model.to(device)
+
 
     criterion.to(device)
 

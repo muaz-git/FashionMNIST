@@ -46,15 +46,19 @@ def parse_args():
     global args
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
     #
-    parser.add_argument('--data', metavar='DIR', help='path to dataset', default='../data/MNIST/original/train')
+    parser.add_argument('--data', metavar='DIR', help='path to dataset', default='../data/FashionMNIST/original/train')
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=10,
+                        help='number of cluster for k-means (default: 10)')
+    parser.add_argument('--exp', type=str, default='./exps/fresh/FashionMNIST/10clusters', help='path to exp folder')
+
+    parser.add_argument('--epochs', type=int, default=50,
+                        help='number of total epochs to run (default: 50)')
 
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
 
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=10,
-                        help='number of cluster for k-means (default: 10)')
-    parser.add_argument('--epochs', type=int, default=50,
-                        help='number of total epochs to run (default: 50)')
+
+
 
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
@@ -75,7 +79,7 @@ def parse_args():
     parser.add_argument('--checkpoints', type=int, default=25000,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--exp', type=str, default='./exps/fresh/MNIST/10clusters', help='path to exp folder')
+
     parser.add_argument('--verbose', action='store_true', help='chatty', default=True)
 
     args = parser.parse_args()
@@ -216,6 +220,7 @@ def main():
         cluster_log.log(deepcluster.images_lists)
 
     torch.save(model.state_dict(), os.path.join(args.exp, "mnist_cnn.pt"))
+
 
 def train(model, device, train_loader, optimizer, epoch, criterion, scheduler=None, log_interval=50):
     losses = AverageMeter()

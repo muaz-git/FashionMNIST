@@ -13,7 +13,7 @@ def warn(*args, **kwargs):
 import warnings
 
 warnings.warn = warn
-
+import matplotlib.cm as cm
 import matplotlib
 
 # matplotlib.use("Agg")
@@ -43,6 +43,7 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 import networkx as nx
+from collections import OrderedDict
 
 use_zca = False
 mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
@@ -87,13 +88,14 @@ def parse_args():
     args = parser.parse_args()
 
 
-def show_graph_with_labels(adjacency_matrix):
+def show_graph_with_labels(adjacency_matrix, labels):
     rows, cols = np.where(adjacency_matrix == 1)
     edges = zip(rows.tolist(), cols.tolist())
     gr = nx.Graph()
     gr.add_edges_from(edges)
+
     # nx.draw(gr, node_size=500, labels=mylabels, with_labels=True)
-    nx.draw(gr, node_size=50)
+    nx.draw(gr, node_size=5, node_color=labels, cmap=plt.cm.Blues)  # , with_labels=True
     plt.show()
 
 
@@ -130,6 +132,34 @@ def create_adj(lbl_arr):
 
     adj = csr_matrix((data, (row, col)), shape=(len(lbl_arr), len(lbl_arr))).toarray().astype(np.uint8)
     return adj
+
+
+def show_proj_features(ftrs, nmb_cluster, pseudo_labels):
+    pca = PCA(n_components=2)
+    features_2d = pca.fit_transform(ftrs)
+
+    area = np.pi * 5
+    colors = cm.rainbow(np.linspace(0, 1, nmb_cluster))
+    for lbl_id, c in zip(range(nmb_cluster), colors):
+        idx = np.where(pseudo_labels == lbl_id)
+        # print(len(idx[0]))
+        if len(idx[0]) > 1000:
+            idx = np.random.choice(idx[0], 1000)
+        sel = features_2d[idx]
+
+        x, y = sel[:, 0], sel[:, 1]
+
+        # plot
+        plt.scatter(x, y, s=area, color=c, label=str(lbl_id))
+
+    # plot
+    plt.legend()
+    # ax.legend()
+    plt.title('Feature visualization with ' + str(args.nmb_cluster) + " classes")
+    plt.xlabel('x')
+    plt.ylabel('y')
+    # plt.savefig(str(args.nmb_cluster) + " classes_sampled.png")
+    plt.show()
 
 
 def main():
@@ -182,7 +212,8 @@ def main():
     model.classifier = nn.Sequential(*list(model.classifier.children())[:-1])  # ignoring ReLU layer in classifier
 
     # get the features for the whole dataset
-    features = compute_features(dataloader, model, len(dataset), device)  # ndarray, (60k, 512) [-0.019, 0.016]
+    features, all_labels = compute_features(dataloader, model, len(dataset),
+                                            device)  # ndarray, (60k, 512) [-0.019, 0.016]
 
     # clustering algorithm to use
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster)
@@ -197,34 +228,19 @@ def main():
             y[img_id] = clstr_id
 
     pseudo_labels = np.array(y)  # (60000, )  0, 99
-    pseudo_labels = np.random.choice(pseudo_labels, 1000)
+
+    idx = np.random.randint(pseudo_labels.shape[0], size=200)
+
+    pseudo_labels = pseudo_labels[idx]
+    all_labels = all_labels[idx]
+
     adj = create_adj(pseudo_labels)
-    show_graph_with_labels(adj)
+    # show_graph_with_labels(adj, all_labels.tolist())
+
+    show_proj_features(features, args.nmb_cluster, pseudo_labels)
+
     exit()
-    pca = PCA(n_components=2)
-    features_2d = pca.fit_transform(features)
 
-    area = np.pi * 3
-
-    for lbl_id in range(args.nmb_cluster):
-        idx = np.where(pseudo_labels == lbl_id)
-        # print(len(idx[0]))
-        if len(idx[0]) > 1000:
-            idx = np.random.choice(idx[0], 1000)
-        sel = features_2d[idx]
-
-        x, y = sel[:, 0], sel[:, 1]
-
-        # plot
-        plt.scatter(x, y, s=area, alpha=0.5)
-
-    # plot
-    # plt.title('Feature visualization with ' + str(args.nmb_cluster) + " classes")
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    # plt.savefig(str(args.nmb_cluster) + " classes_sampled.png")
-    # plt.show()
-    exit()
     fd = int(model.top_layer.weight.size()[1])
 
     model.top_layer = None
@@ -405,13 +421,18 @@ def compute_features(dataloader, model, N, device):
     model.eval()
     # discard the label information in the dataloader
     with torch.no_grad():
-        for i, (input_tensor, _) in enumerate(dataloader):
+        for i, (input_tensor, lbls) in enumerate(dataloader):
+
             # input_tensor torch.Size([256, 1, 28, 28])  tensor(-0.8102) tensor(2.0227)
             input_var = torch.autograd.Variable(input_tensor.to(device))
             aux = model(input_var).data.cpu().numpy()
 
             if i == 0:
                 features = np.zeros((N, aux.shape[1])).astype('float32')
+                all_labels = lbls.data.numpy()
+
+            else:
+                all_labels = np.append(all_labels, lbls.data.numpy(), axis=0)
 
             if i < len(dataloader) - 1:
                 features[i * args.batch: (i + 1) * args.batch] = aux.astype('float32')
@@ -427,7 +448,7 @@ def compute_features(dataloader, model, N, device):
             #     print('{0} / {1}\t'
             #           'Time: {batch_time.test:.3f} ({batch_time.avg:.3f})'
             #           .format(i, len(dataloader), batch_time=batch_time))
-    return features
+    return features, all_labels
 
 
 if __name__ == '__main__':
