@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--exp', type=str, default='./exps/',
                         help='path to exp folder (default: ./exps/)')
     parser.add_argument('--augment', action='store_true', help='To augment data', default=False)
+    parser.add_argument('--translate', action='store_true', help='To translate only', default=False)
 
     parser.add_argument('--bayes', type=int, default=0,
                         help='To use MCDropout with args.bayes samples. default(0 for not using)')
@@ -291,8 +292,10 @@ def main():
                        transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))]
     if args.augment:
         print('Augmenting training data')
-        # train_transform = [transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
-        #                                            shear=5)] + basic_transform
+        train_transform = [transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
+                                                   shear=5)] + basic_transform
+    #
+    elif args.translate:
         train_transform = [transforms.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.999, 1.001),
                                                    shear=0)] + basic_transform
     else:
@@ -357,6 +360,8 @@ if __name__ == '__main__':
     augment = "noaugment"
     if args.augment:
         augment = "augment"
+    if args.translate:
+        augment = "translate"
     bayes = "nobayes"
     if args.bayes:
         bayes = "bayes" + str(args.bayes) + '_per' + str(percentile)
