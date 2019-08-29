@@ -13,6 +13,20 @@ BS = 32
 INIT_LR = 1e-2
 NUM_EPOCHS = 25
 
+VGGMiniRes augmentation (extra augmentation decreased the performance)
+              precision    recall  f1-score   support
+
+    accuracy                           0.93     10000
+   macro avg       0.93      0.93      0.93     10000
+weighted avg       0.93      0.93      0.93     10000
+
+FashionMNISTResNet augmentation (extra augmentation decreased the performance)
+              precision    recall  f1-score   support
+
+    accuracy                           0.88     10000
+   macro avg       0.88      0.88      0.88     10000
+weighted avg       0.88      0.88      0.88     10000
+
 VGGMini without last convolution layer
               precision    recall  f1-score   support
 

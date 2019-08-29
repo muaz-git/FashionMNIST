@@ -13,6 +13,7 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 import models
+from models import ResidualBlock
 from sklearn.metrics import classification_report
 from tensorboardX import SummaryWriter
 import os
@@ -25,7 +26,7 @@ def parse_args():
     global args
     parser = argparse.ArgumentParser(description='PyTorch Implementation on FashionMNIST.')
 
-    parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini'],
+    parser.add_argument('--model', type=str, choices=['VGGMiniCBR', 'VGGMini', 'FashionMNISTResNet', 'VGGMiniRes'],
                         default='VGGMiniCBR', help='Choice of model (default: VGGMiniCBR)')
     parser.add_argument('--batch', default=256, type=int,
                         help='mini-batch size (default: 256)')
@@ -290,8 +291,10 @@ def main():
                        transforms.Normalize((mean_std[use_zca][0],), (mean_std[use_zca][1],))]
     if args.augment:
         print('Augmenting training data')
-        train_transform = [transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
-                                                   shear=5)] + basic_transform
+        # train_transform = [transforms.RandomAffine(degrees=5, translate=(0.03, 0.03), scale=(0.95, 1.05),
+        #                                            shear=5)] + basic_transform
+        train_transform = [transforms.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.999, 1.001),
+                                                   shear=0)] + basic_transform
     else:
         print('Not Augmenting training data')
         train_transform = basic_transform
@@ -305,9 +308,15 @@ def main():
         datasets.FashionMNIST('data/', train=False, download=True, transform=transforms.Compose(basic_transform)),
         batch_size=args.valbatch, shuffle=True, **kwargs)
 
-
     # model = VGGMiniCBR(num_classes=10)
-    model = models.__dict__[args.model](num_classes=10)
+    if args.model == 'VGGMiniRes':
+        net_args = {
+            "block": ResidualBlock,
+            "layers": [2, 2, 2, 2]
+        }
+        model = models.__dict__[args.model](**net_args, num_classes=10)
+    else:
+        model = models.__dict__[args.model](num_classes=10)
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = nn.DataParallel(model)
