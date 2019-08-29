@@ -35,7 +35,7 @@ def parse_args():
                         help='number of total epochs to run (default: 5)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
-    parser.add_argument('--exp', type=str, default='./exps/eval/FashionMNIST/loading100-freezing', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='./exps/eval/FashionMNIST/loading10-freezing', help='path to exp folder')
 
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
