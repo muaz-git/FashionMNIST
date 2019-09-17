@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use('TkAgg')
+
 import torch
 import numpy as np
 import cv2
@@ -11,6 +15,7 @@ import argparse
 import models
 from utils import apply_dropout, get_masked_pred, bb_intersection_over_union
 import uuid
+from matplotlib import pyplot as plt
 
 args = None
 
@@ -118,8 +123,8 @@ def get_prediction(model, img):
     # img to tensor
     model.eval()
     tr = transforms.Compose([
-        transforms.Resize(100),
-        transforms.RandomCrop((100, 100)),
+        transforms.Resize(28),
+        transforms.RandomCrop((28, 28)),
         transforms.ToTensor(),
         transforms.Normalize((0.2860,), (0.3530,))
     ])
@@ -130,6 +135,7 @@ def get_prediction(model, img):
 
     ximg_tnsr = ximg_tnsr.to(device)
     ximg_tnsr = ximg_tnsr.unsqueeze(0)
+
 
     # unique_filename = "./outs/" + str(uuid.uuid4()) + ".png"
     # torchvision.utils.save_image(ximg_tnsr, unique_filename)
@@ -195,6 +201,13 @@ while True:
         x1, y1, x2, y2 = obj_box
         if validate_bbox(obj_box):
             obj = gray_frame[y1:y2, x1: x2]
+            obj = 1 - obj
+            # obj *= 255
+            # obj = obj.astype(np.uint8)
+            #
+            # plt.hist(obj.ravel(), 256, [0, 256])
+            # plt.savefig('from_video2.png')
+            # exit()
             if args.bayes:
                 pred, cls_name = get_prediction_bayes(model, obj)
             else:

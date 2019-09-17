@@ -20,7 +20,7 @@ import os
 from utils import save_zca
 import argparse
 from utils import apply_dropout, get_masked_pred
-
+from matplotlib import pyplot as plt
 
 def parse_args():
     global args

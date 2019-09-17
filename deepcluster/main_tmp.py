@@ -44,6 +44,7 @@ import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 import networkx as nx
 from collections import OrderedDict
+import random
 
 use_zca = False
 mean_std = {True: (0.0856, 0.8943), False: (0.2860, 0.3530)}
@@ -89,13 +90,19 @@ def parse_args():
 
 
 def show_graph_with_labels(adjacency_matrix, labels):
+    st = time.time()
     rows, cols = np.where(adjacency_matrix == 1)
     edges = zip(rows.tolist(), cols.tolist())
     gr = nx.Graph()
-    gr.add_edges_from(edges)
+    gr.add_edges_from(edges, k=10)
 
     # nx.draw(gr, node_size=500, labels=mylabels, with_labels=True)
-    nx.draw(gr, node_size=5, node_color=labels, cmap=plt.cm.Blues)  # , with_labels=True
+    # Add some random weights (as dictonary with edges as key and weight as value).
+    # nx.set_edge_attributes(gr, 'my_weight', dict(zip(gr.edges(), [random.random() * 10 for edge in gr.edges()])))
+
+    pos = nx.spring_layout(gr)
+    nx.draw(gr, pos=pos, node_size=5, node_color=labels, cmap=plt.cm.Blues)  # , with_labels=True
+    print("Took ", time.time() - st)
     plt.show()
 
 
@@ -229,15 +236,16 @@ def main():
 
     pseudo_labels = np.array(y)  # (60000, )  0, 99
 
-    idx = np.random.randint(pseudo_labels.shape[0], size=200)
+    idx = np.random.randint(pseudo_labels.shape[0], size=1000)
 
     pseudo_labels = pseudo_labels[idx]
     all_labels = all_labels[idx]
 
     adj = create_adj(pseudo_labels)
-    # show_graph_with_labels(adj, all_labels.tolist())
 
-    show_proj_features(features, args.nmb_cluster, pseudo_labels)
+    show_graph_with_labels(adj, all_labels.tolist())
+
+    # show_proj_features(features, args.nmb_cluster, all_labels)
 
     exit()
 
